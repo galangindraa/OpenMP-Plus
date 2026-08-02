@@ -8,6 +8,9 @@
 #include <SAMP+/client/Network.h>
 #include <SAMP+/client/CSystem.h>
 #include <SAMP+/client/CBuildManager.h>
+#include <SAMP+/client/CSampClient.h>
+
+#include <map>
 
 namespace
 {
@@ -37,6 +40,8 @@ namespace
 	bool g_targetControlBitWasSet[GtaPadCount] = {};
 	bool g_targetInputBlockWasActive = false;
 	unsigned int g_targetTransitionFlushFrames = 0;
+	std::map<unsigned short, unsigned char> g_detachedVehicleWheels;
+	void ReapplyDetachedVehicleWheels();
 
 	typedef void*(__cdecl* GetPad_t)(int);
 	typedef void(__thiscall* PadClear_t)(void*, bool, bool);
@@ -257,6 +262,7 @@ void CGame::PostDeviceReset()
 
 void CGame::PreEndScene()
 {
+	ReapplyDetachedVehicleWheels();
 
 	if(RecreateMarkers)
 	{
@@ -511,8 +517,10 @@ void CGame::ToggleThermalVision(bool toggle)
 typedef void*(__cdecl* GetFrameFromName_t)(void* clump, const char* name);
 typedef void(__cdecl* RwFrameUpdateObjects_t)(void* frame);
 
-void CGame::SetVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached)
+namespace
 {
+	void ApplyVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached)
+	{
 	if (wheelId > 3)
 		return;
 
@@ -523,19 +531,11 @@ void CGame::SetVehicleWheelDetached(unsigned short vehicleId, unsigned char whee
 		"wheel_rb_dummy"
 	};
 
-	uintptr_t pNetGame = CMem::Get<uintptr_t>(0x21A0EC);
-	if (!pNetGame || !CanAccess(reinterpret_cast<void*>(pNetGame), sizeof(uintptr_t)))
+	DWORD gtaVehicle = 0;
+	if (!SampClient::ResolveVehicle(vehicleId, gtaVehicle))
 		return;
 
-	uintptr_t pVehiclePool = CMem::Get<uintptr_t>(pNetGame + 0x13C);
-	if (!pVehiclePool || !CanAccess(reinterpret_cast<void*>(pVehiclePool), sizeof(uintptr_t)))
-		return;
-
-	uintptr_t pVehicleArray = pVehiclePool + 0x18;
-	if (!CanAccess(reinterpret_cast<void*>(pVehicleArray + (vehicleId * 4)), sizeof(uintptr_t)))
-		return;
-
-	uintptr_t pGtaVehicle = CMem::Get<uintptr_t>(pVehicleArray + (vehicleId * 4));
+	uintptr_t pGtaVehicle = static_cast<uintptr_t>(gtaVehicle);
 	if (!pGtaVehicle || !CanAccess(reinterpret_cast<void*>(pGtaVehicle), 0x20))
 		return;
 
@@ -560,6 +560,40 @@ void CGame::SetVehicleWheelDetached(unsigned short vehicleId, unsigned char whee
 	RwFrameUpdateObjects_t RwFrameUpdateObjects = reinterpret_cast<RwFrameUpdateObjects_t>(0x7F8E00);
 	if (CanAccess(reinterpret_cast<void*>(0x7F8E00), 4))
 		RwFrameUpdateObjects(pFrame);
+}
+}
+
+void CGame::SetVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached)
+{
+	if (wheelId > 3)
+		return;
+
+	unsigned char& wheelMask = g_detachedVehicleWheels[vehicleId];
+	const unsigned char wheelBit = static_cast<unsigned char>(1u << wheelId);
+	if (detached)
+		wheelMask = static_cast<unsigned char>(wheelMask | wheelBit);
+	else
+		wheelMask = static_cast<unsigned char>(wheelMask & ~wheelBit);
+
+	if (!wheelMask)
+		g_detachedVehicleWheels.erase(vehicleId);
+
+	ApplyVehicleWheelDetached(vehicleId, wheelId, detached);
+}
+
+namespace
+{
+	void ReapplyDetachedVehicleWheels()
+	{
+		for (std::map<unsigned short, unsigned char>::const_iterator it = g_detachedVehicleWheels.begin(); it != g_detachedVehicleWheels.end(); ++it)
+		{
+			for (unsigned char wheelId = 0; wheelId < 4; ++wheelId)
+			{
+				if (it->second & (1u << wheelId))
+					ApplyVehicleWheelDetached(it->first, wheelId, true);
+			}
+		}
+	}
 }
 
 void CGame::ApplyTargetInputBlock()
@@ -605,6 +639,11 @@ void CGame::OnLeaveWater()
 
 void CGame::Present()
 {
+	// The server can send the state before a vehicle has streamed in. Reapply
+	// detached wheels while rendering so they are also removed once the vehicle
+	// becomes available and after GTA refreshes its frame transforms.
+	ReapplyDetachedVehicleWheels();
+
 	//CGraphics::DrawString("Running SA-MP+ Pre-Alpha Release", 15, X, Y, D3DCOLOR_ARGB(255, 255, 255, 255));
 
 	//CGraphics::DrawBox(50, 50, 100, 90, D3DCOLOR_ARGB(255, 255, 255, 255));

@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <sdk.hpp>
@@ -112,6 +113,7 @@ public:
 
 	bool isUsingOMPPlus(int playerid) const;
 	bool setVehicleWheelDetached(int vehicleid, uint8_t wheelid, bool detached);
+	bool isVehicleWheelDetached(int vehicleid, uint8_t wheelid) const;
 	bool sendLegacyRPC(int playerid, uint16_t rpc, NetworkBitStream* payload = nullptr);
 	void broadcastLegacyRPC(uint16_t rpc, NetworkBitStream* payload = nullptr);
 
@@ -192,6 +194,7 @@ private:
 	std::array<OMPPlusPlayerState, PLAYER_POOL_SIZE> states_;
 	std::array<OMPPlusTargetContext, PLAYER_POOL_SIZE> targetContexts_;
 	std::array<OMPPlusBuildContext, PLAYER_POOL_SIZE> buildContexts_;
+	std::unordered_map<int, std::array<bool, 4>> detachedVehicleWheels_;
 	std::vector<IPawnScript*> scripts_;
 
 	void resetPlayer(int playerid);
@@ -209,6 +212,7 @@ private:
 	void processUiEvent(IPlayer& player, NetworkBitStream& stream);
 	uint32_t deriveLegacyFeatures(uint32_t capabilities) const;
 	void sendHelloAck(IPlayer& player);
+	void syncVehicleWheelStates(int playerid);
 	void sendError(IPlayer& player, uint16_t code);
 	IPlayer* getPlayer(int playerid) const;
 };

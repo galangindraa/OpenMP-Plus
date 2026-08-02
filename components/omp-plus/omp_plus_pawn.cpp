@@ -199,6 +199,11 @@ namespace
 		return Component()->setVehicleWheelDetached(static_cast<int>(params[1]), static_cast<uint8_t>(params[2]), params[3] != 0) ? 1 : 0;
 	}
 
+	cell AMX_NATIVE_CALL IsVehicleWheelDetachedProc(AMX*, cell* params)
+	{
+		return Component()->isVehicleWheelDetached(static_cast<int>(params[1]), static_cast<uint8_t>(params[2])) ? 1 : 0;
+	}
+
 	cell AMX_NATIVE_CALL SetPlayerBlurIntensityProc(AMX*, cell* params)
 	{
 		NetworkBitStream stream;
@@ -569,6 +574,7 @@ AMX_NATIVE_INFO OMPPlusNatives[] =
 	{ "ToggleNightVision", ToggleNightVisionProc },
 	{ "ToggleThermalVision", ToggleThermalVisionProc },
 	{ "SetVehicleWheelDetached", SetVehicleWheelDetachedProc },
+	{ "IsVehicleWheelDetached", IsVehicleWheelDetachedProc },
 	{ "SAMPP_BindKey", BindKeyProc },
 	{ "SAMPP_UnbindKey", UnbindKeyProc },
 	{ "SAMPP_ClearKeyBinds", ClearKeyBindsProc },

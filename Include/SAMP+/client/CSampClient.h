@@ -22,6 +22,10 @@ namespace SampClient
 		DWORD sampInfoOffset;
 		DWORD rakClientInterfaceOffset;
 		DWORD chatInputInfoOffset;
+		DWORD poolsOffset;
+		DWORD vehiclePoolOffset;
+		DWORD vehicleArrayOffset;
+		DWORD vehicleGtaOffset;
 	};
 
 	DWORD GetBase();
@@ -34,5 +38,6 @@ namespace SampClient
 	bool IsExecutableAddress(DWORD address);
 	bool ValidateVTableObject(DWORD objectAddress, size_t methodCount);
 	bool ResolveSampInfo(DWORD& sampInfo);
+	bool ResolveVehicle(unsigned short vehicleId, DWORD& gtaVehicle);
 	bool IsChatInputActive();
 }

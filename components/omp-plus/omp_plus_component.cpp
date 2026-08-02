@@ -251,6 +251,7 @@ void OMPPlusComponent::reset()
 		context = OMPPlusTargetContext();
 	for (auto& context : buildContexts_)
 		context = OMPPlusBuildContext();
+	detachedVehicleWheels_.clear();
 }
 
 void OMPPlusComponent::onPlayerConnect(IPlayer& player)
@@ -578,12 +579,47 @@ bool OMPPlusComponent::setVehicleWheelDetached(int vehicleid, uint8_t wheelid, b
 	if (vehicleid <= 0 || wheelid > 3)
 		return false;
 
+	auto& wheels = detachedVehicleWheels_[vehicleid];
+	wheels[wheelid] = detached;
+	if (std::none_of(wheels.begin(), wheels.end(), [](bool wheelDetached)
+	{
+		return wheelDetached;
+	}))
+		detachedVehicleWheels_.erase(vehicleid);
+
 	NetworkBitStream stream;
 	stream.Write(static_cast<uint16_t>(vehicleid));
 	stream.Write(wheelid);
 	stream.Write(detached);
 	broadcastLegacyRPC(OMPPlusProtocol::SET_VEHICLE_WHEEL_DETACHED, &stream);
 	return true;
+}
+
+bool OMPPlusComponent::isVehicleWheelDetached(int vehicleid, uint8_t wheelid) const
+{
+	if (vehicleid <= 0 || wheelid > 3)
+		return false;
+
+	const auto vehicle = detachedVehicleWheels_.find(vehicleid);
+	return vehicle != detachedVehicleWheels_.end() && vehicle->second[wheelid];
+}
+
+void OMPPlusComponent::syncVehicleWheelStates(int playerid)
+{
+	for (const auto& [vehicleid, wheels] : detachedVehicleWheels_)
+	{
+		for (uint8_t wheelid = 0; wheelid < wheels.size(); ++wheelid)
+		{
+			if (!wheels[wheelid])
+				continue;
+
+			NetworkBitStream stream;
+			stream.Write(static_cast<uint16_t>(vehicleid));
+			stream.Write(wheelid);
+			stream.Write(true);
+			sendLegacyRPC(playerid, OMPPlusProtocol::SET_VEHICLE_WHEEL_DETACHED, &stream);
+		}
+	}
 }
 
 bool OMPPlusComponent::openBuild(int playerid, uint32_t sessionid, const std::string& title, float maxDistance)
@@ -1008,6 +1044,7 @@ bool OMPPlusComponent::handleHello(IPlayer& player, NetworkBitStream& stream, ui
 	}
 
 	sendHelloAck(player);
+	syncVehicleWheelStates(player.getID());
 
 	if (!wasReady)
 	{

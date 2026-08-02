@@ -1,0 +1,16 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/indra/Documents/Script/OpenMP-Plus/Build/linux32/cmake_install.cmake",
+		"/home/indra/Documents/Script/OpenMP-Plus/Build/linux32/Common/cmake_install.cmake",
+		"/home/indra/Documents/Script/OpenMP-Plus/Build/linux32/ThirdParty/openmp-sdk/cmake_install.cmake",
+		"/home/indra/Documents/Script/OpenMP-Plus/Build/linux32/ThirdParty/openmp-sdk/lib/glm/cmake_install.cmake",
+		"/home/indra/Documents/Script/OpenMP-Plus/Build/linux32/ThirdParty/openmp-sdk/lib/glm/glm/cmake_install.cmake",
+		"/home/indra/Documents/Script/OpenMP-Plus/Build/linux32/ThirdParty/openmp-sdk/lib/robin-hood-hashing/cmake_install.cmake",
+		"/home/indra/Documents/Script/OpenMP-Plus/Build/linux32/ThirdParty/openmp-sdk/lib/span-lite/cmake_install.cmake",
+		"/home/indra/Documents/Script/OpenMP-Plus/Build/linux32/ThirdParty/openmp-sdk/lib/string-view-lite/cmake_install.cmake",
+		"/home/indra/Documents/Script/OpenMP-Plus/Build/linux32/ThirdParty/openmp-network/cmake_install.cmake",
+		"/home/indra/Documents/Script/OpenMP-Plus/Build/linux32/components/omp-plus/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

@@ -4,10 +4,10 @@ namespace
 {
 	const SampClient::Layout kLayouts[] =
 	{
-		{ SampClient::VERSION_037_R1, "0.3.7-R1", 0x31DF13, 0x21A0F8, 0x3C9, 0x21A0E8 },
-		{ SampClient::VERSION_037_R31, "0.3.7-R3-1", 0xCC4D0, 0x26E8DC, 0x2C, 0x26E8CC },
-		{ SampClient::VERSION_037_R4, "0.3.7-R4", 0xCBCB0, 0x26EA0C, 0x2C, 0x26E9FC },
-		{ SampClient::VERSION_03DL_R1, "0.3DL-R1", 0xFDB60, 0x2ACA24, 0x2C, 0x2ACA14 }
+		{ SampClient::VERSION_037_R1, "0.3.7-R1", 0x31DF13, 0x21A0F8, 0x3C9, 0x21A0E8, 0x3CD, 0x1C, 0x1134, 0x4C },
+		{ SampClient::VERSION_037_R31, "0.3.7-R3-1", 0xCC4D0, 0x26E8DC, 0x2C, 0x26E8CC, 0x3DE, 0x0C, 0x1134, 0x4C },
+		{ SampClient::VERSION_037_R4, "0.3.7-R4", 0xCBCB0, 0x26EA0C, 0x2C, 0x26E9FC, 0x3DE, 0x0C, 0x1134, 0x4C },
+		{ SampClient::VERSION_03DL_R1, "0.3DL-R1", 0xFDB60, 0x2ACA24, 0x2C, 0x2ACA14, 0x3DE, 0x0C, 0x1134, 0x4C }
 	};
 
 	bool IsReadableProtection(DWORD protect)
@@ -188,6 +188,29 @@ namespace SampClient
 			return false;
 
 		return ReadPointer(base + layout.sampInfoOffset, sampInfo);
+	}
+
+	bool ResolveVehicle(unsigned short vehicleId, DWORD& gtaVehicle)
+	{
+		gtaVehicle = 0;
+		if (vehicleId >= 2000)
+			return false;
+
+		DWORD base = GetBase();
+		Version version = GetVersion(base);
+		Layout layout;
+		DWORD sampInfo = 0;
+		DWORD pools = 0;
+		DWORD vehiclePool = 0;
+		DWORD sampVehicle = 0;
+		if (!GetLayout(version, layout)
+			|| !ReadPointer(base + layout.sampInfoOffset, sampInfo)
+			|| !ReadPointer(sampInfo + layout.poolsOffset, pools)
+			|| !ReadPointer(pools + layout.vehiclePoolOffset, vehiclePool)
+			|| !ReadPointer(vehiclePool + layout.vehicleArrayOffset + vehicleId * sizeof(DWORD), sampVehicle))
+			return false;
+
+		return ReadPointer(sampVehicle + layout.vehicleGtaOffset, gtaVehicle);
 	}
 
 	bool IsChatInputActive()
