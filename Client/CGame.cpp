@@ -543,7 +543,9 @@ namespace
 	if (!pRwClump || !CanAccess(pRwClump, 0x20))
 		return;
 
-	GetFrameFromName_t GetFrameFromName = reinterpret_cast<GetFrameFromName_t>(0x4C52A0);
+	// GTA SA 1.0 US addresses. 4C52A0 is not the frame lookup routine and
+	// silently returns an unrelated result, leaving the wheel visible.
+	GetFrameFromName_t GetFrameFromName = reinterpret_cast<GetFrameFromName_t>(0x4C4400);
 	void* pFrame = GetFrameFromName(pRwClump, wheelNames[wheelId]);
 	if (!pFrame || !CanAccess(pFrame, 0x40))
 		return;
@@ -557,8 +559,8 @@ namespace
 	pMatrix[5] = scale;
 	pMatrix[10] = scale;
 
-	RwFrameUpdateObjects_t RwFrameUpdateObjects = reinterpret_cast<RwFrameUpdateObjects_t>(0x7F8E00);
-	if (CanAccess(reinterpret_cast<void*>(0x7F8E00), 4))
+	RwFrameUpdateObjects_t RwFrameUpdateObjects = reinterpret_cast<RwFrameUpdateObjects_t>(0x644D00);
+	if (CanAccess(reinterpret_cast<void*>(0x644D00), 4))
 		RwFrameUpdateObjects(pFrame);
 }
 }
