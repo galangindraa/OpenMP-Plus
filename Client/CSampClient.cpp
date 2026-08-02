@@ -207,7 +207,8 @@ namespace SampClient
 		// Some open.mp/SA-MP launchers report an entry point that is not in
 		// the classic version table. Try the detected layout first, then all
 		// known layouts; the pointer chain itself is the reliable check.
-		for (size_t pass = 0; pass < sizeof(kLayouts) / sizeof(kLayouts[0]); ++pass)
+		const size_t layoutCount = sizeof(kLayouts) / sizeof(kLayouts[0]);
+		for (size_t pass = 0; pass <= layoutCount; ++pass)
 		{
 			const Layout* layout = 0;
 			if (pass == 0 && version != VERSION_UNKNOWN)
@@ -218,7 +219,7 @@ namespace SampClient
 			else
 			{
 				size_t index = (version != VERSION_UNKNOWN) ? pass - 1 : pass;
-				if (index < sizeof(kLayouts) / sizeof(kLayouts[0]))
+				if (index < layoutCount)
 					layout = &kLayouts[index];
 			}
 			if (!layout)
@@ -227,12 +228,22 @@ namespace SampClient
 			DWORD sampInfo = 0, pools = 0, vehiclePool = 0, sampVehicle = 0;
 			if (!ReadPointer(base + layout->sampInfoOffset, sampInfo)
 				|| !ReadPointer(sampInfo + layout->poolsOffset, pools)
-				|| !ReadPointer(pools + layout->vehiclePoolOffset, vehiclePool)
-				|| !ReadPointer(vehiclePool + layout->vehicleArrayOffset + vehicleId * sizeof(DWORD), sampVehicle)
-				|| !ReadPointer(sampVehicle + layout->vehicleGtaOffset, gtaVehicle))
+				)
 				continue;
 
-			return true;
+			// R4-v2/R5 variants in the wild differ in this one member. Try
+			// the documented offset first, then the two legacy positions.
+			const DWORD poolOffsets[] = { layout->vehiclePoolOffset, 0x00, 0x0C, 0x1C };
+			for (size_t p = 0; p < sizeof(poolOffsets) / sizeof(poolOffsets[0]); ++p)
+			{
+				if (!ReadPointer(pools + poolOffsets[p], vehiclePool)
+					|| !ReadPointer(vehiclePool + layout->vehicleArrayOffset + vehicleId * sizeof(DWORD), sampVehicle)
+					|| !ReadPointer(sampVehicle + layout->vehicleGtaOffset, gtaVehicle))
+					continue;
+				DWORD clump = 0;
+				if (CanRead(gtaVehicle + 0x18, sizeof(DWORD)) && ReadPointer(gtaVehicle + 0x18, clump))
+					return true;
+			}
 		}
 		return false;
 	}
