@@ -7,7 +7,11 @@ namespace
 		{ SampClient::VERSION_037_R1, "0.3.7-R1", 0x31DF13, 0x21A0F8, 0x3C9, 0x21A0E8, 0x3CD, 0x1C, 0x1134, 0x4C },
 		{ SampClient::VERSION_037_R31, "0.3.7-R3-1", 0xCC4D0, 0x26E8DC, 0x2C, 0x26E8CC, 0x3DE, 0x0C, 0x1134, 0x4C },
 		{ SampClient::VERSION_037_R4, "0.3.7-R4", 0xCBCB0, 0x26EA0C, 0x2C, 0x26E9FC, 0x3DE, 0x0C, 0x1134, 0x4C },
-		{ SampClient::VERSION_03DL_R1, "0.3DL-R1", 0xFDB60, 0x2ACA24, 0x2C, 0x2ACA14, 0x3DE, 0x0C, 0x1134, 0x4C }
+		{ SampClient::VERSION_03DL_R1, "0.3DL-R1", 0xFDB60, 0x2ACA24, 0x2C, 0x2ACA14, 0x3DE, 0x0C, 0x1134, 0x4C },
+		// R4-v2/R5 keep the same vehicle-pool layout but the pool pointer
+		// moved to the start of the pools object.
+		{ SampClient::VERSION_UNKNOWN, "0.3.7-R4-v2", 0, 0x26EA0C, 0, 0x26E9FC, 0x3DE, 0x00, 0x1134, 0x4C },
+		{ SampClient::VERSION_UNKNOWN, "0.3.7-R5", 0, 0x26EB94, 0, 0x26EB84, 0x3DE, 0x00, 0x1134, 0x4C }
 	};
 
 	bool IsReadableProtection(DWORD protect)
@@ -167,6 +171,8 @@ namespace SampClient
 
 	bool GetLayout(Version version, Layout& layout)
 	{
+		if (version == VERSION_UNKNOWN)
+			return false;
 		for (size_t i = 0; i < sizeof(kLayouts) / sizeof(kLayouts[0]); ++i)
 		{
 			if (kLayouts[i].version == version)
