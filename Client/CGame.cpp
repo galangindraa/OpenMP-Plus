@@ -608,8 +608,14 @@ namespace
 		unsigned char* wheelStatus = reinterpret_cast<unsigned char*>(pGtaVehicle + 0x5A0 + damageWheelOffsets[wheelId]);
 		if (CanAccess(wheelStatus, sizeof(*wheelStatus)))
 			*wheelStatus = detached ? 2 : 0;
+		else
+			CLog::Write("Wheel apply pending: vehicle=%u damage manager not ready", vehicleId);
 
-		void* wheelNode = CMem::Get<void*>(pGtaVehicle + 0x648 + wheelNodeIndexes[wheelId] * sizeof(void*));
+		void* wheelNode = NULL;
+		void* wheelNodeAddress = reinterpret_cast<void*>(pGtaVehicle + 0x648 + wheelNodeIndexes[wheelId] * sizeof(void*));
+		if (CanAccess(wheelNodeAddress, sizeof(void*)))
+			wheelNode = CMem::Get<void*>(wheelNodeAddress);
+
 		if (detached && wheelNode)
 		{
 			SpawnFlyingComponent_t SpawnFlyingComponent = reinterpret_cast<SpawnFlyingComponent_t>(0x530300);
@@ -625,20 +631,16 @@ namespace
 				}
 			}
 
-			__try
-			{
-				HideAllAtomics(wheelNode);
-				void* child = CMem::Get<void*>(reinterpret_cast<uintptr_t>(wheelNode) + RwFrameChildOffset);
-				if (child)
-					HideAllNodesRecursive(child);
-			}
-			__except (EXCEPTION_EXECUTE_HANDLER)
-			{
-				CLog::Write("Wheel hide component failed: vehicle=%u wheel=%u node=%d", vehicleId, wheelId, wheelNodeIndexes[wheelId]);
-			}
+			// The original plugin hides atomics after spawning the component.
+			// Keep that disabled here because raw RenderWare traversal is the
+			// riskiest part across SA-MP client builds; the frame fallback below
+			// still hides the wheel visually.
 		}
 
-		void* pRwClump = CMem::Get<void*>(pGtaVehicle + 0x18);
+		void* pRwClump = NULL;
+		if (CanAccess(reinterpret_cast<void*>(pGtaVehicle + 0x18), sizeof(void*)))
+			pRwClump = CMem::Get<void*>(pGtaVehicle + 0x18);
+
 		if (!pRwClump || !CanAccess(pRwClump, 0x20))
 		{
 			CLog::Write("Wheel apply pending: vehicle=%u clump not ready", vehicleId);
@@ -646,7 +648,17 @@ namespace
 		}
 
 		GetFrameFromName_t GetFrameFromName = reinterpret_cast<GetFrameFromName_t>(0x4C5400);
-		void* pFrame = GetFrameFromName(pRwClump, wheelNames[wheelId]);
+		void* pFrame = NULL;
+		__try
+		{
+			pFrame = GetFrameFromName(pRwClump, wheelNames[wheelId]);
+		}
+		__except (EXCEPTION_EXECUTE_HANDLER)
+		{
+			CLog::Write("Wheel apply pending: vehicle=%u wheel=%u GetFrameFromName crashed", vehicleId, wheelId);
+			return;
+		}
+
 		if (!pFrame || !CanAccess(pFrame, 0x40))
 		{
 			CLog::Write("Wheel apply pending: vehicle=%u wheel=%u frame not found", vehicleId, wheelId);
@@ -655,13 +667,12 @@ namespace
 
 		if (detached)
 		{
-			__try
+			float* pMatrix = reinterpret_cast<float*>(reinterpret_cast<uintptr_t>(pFrame) + 0x10);
+			if (CanAccess(pMatrix, 36))
 			{
-				HideAllNodesRecursive(pFrame);
-			}
-			__except (EXCEPTION_EXECUTE_HANDLER)
-			{
-				CLog::Write("Wheel hide frame failed: vehicle=%u wheel=%u", vehicleId, wheelId);
+				pMatrix[0] = 0.00001f;
+				pMatrix[5] = 0.00001f;
+				pMatrix[10] = 0.00001f;
 			}
 		}
 		else
@@ -680,7 +691,16 @@ namespace
 
 		RwFrameUpdateObjects_t RwFrameUpdateObjects = reinterpret_cast<RwFrameUpdateObjects_t>(0x644D00);
 		if (CanAccess(reinterpret_cast<void*>(0x644D00), 4))
-			RwFrameUpdateObjects(pFrame);
+		{
+			__try
+			{
+				RwFrameUpdateObjects(pFrame);
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER)
+			{
+				CLog::Write("Wheel frame update failed: vehicle=%u wheel=%u", vehicleId, wheelId);
+			}
+		}
 	}
 }
 

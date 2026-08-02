@@ -17,7 +17,6 @@ namespace
 
 	const DWORD VehicleListedOffset = 0x3074;
 	const unsigned short MaxSampVehicles = 2000;
-	const DWORD VehicleGtaArrayOffset = VehicleListedOffset + (MaxSampVehicles * sizeof(DWORD));
 	DWORD g_lastVehicleResolveLog[MaxSampVehicles] = {};
 
 	void LogVehicleResolveFailure(unsigned short vehicleId, const char* stage, DWORD base, DWORD entryPoint, DWORD sampInfo, DWORD pools, DWORD vehiclePool, DWORD sampVehicle, DWORD gtaVehicle)
@@ -287,14 +286,6 @@ namespace SampClient
 				DWORD listed = *reinterpret_cast<DWORD*>(vehicleSlot + VehicleListedOffset);
 				if (!listed)
 					continue;
-
-				DWORD directGtaVehicle = 0;
-				if (ReadPointer(vehiclePool + VehicleGtaArrayOffset + vehicleId * sizeof(DWORD), directGtaVehicle)
-					&& CanRead(directGtaVehicle, 0x20))
-				{
-					gtaVehicle = directGtaVehicle;
-					return true;
-				}
 
 				if (!ReadPointer(vehicleSlot + layout->vehicleArrayOffset, sampVehicle))
 					continue;
