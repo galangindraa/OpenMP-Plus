@@ -1,24 +1,4 @@
 
-#define HUD_COMPONENT_ALL 0
-#define HUD_COMPONENT_AMMO 1
-#define HUD_COMPONENT_WEAPON 2
-#define HUD_COMPONENT_HEALTH 3
-#define HUD_COMPONENT_BREATH 4
-#define HUD_COMPONENT_ARMOUR 5
-#define HUD_COMPONENT_MINIMAP 6
-#define HUD_COMPONENT_CROSSHAIR 7
-#define HUD_COMPONENT_MONEY 8
-
-#define HUD_COLOUR_MONEY_POSITIVE 0
-#define HUD_COLOUR_MONEY_NEGATIVE 1
-#define HUD_COLOUR_ARMOUR 2
-#define HUD_COLOUR_HEALTH 3
-#define HUD_COLOUR_BREATH 4
-#define HUD_COLOUR_AMMO 5
-#define HUD_COLOUR_WANTED_LEVEL 6
-#define HUD_COLOUR_RADIO_TUNED 7
-#define HUD_COLOUR_RADIO_UNTUNED 8
-
 #define RADIO_PLAYBACKFM 1
 #define RADIO_KROSE 2
 #define RADIO_KDST 3
@@ -140,17 +120,6 @@
 #define SAMPP_UI_EVENT_WORKSPACE_WORLD_DROP 10
 #define SAMPP_UI_EVENT_WORKSPACE_ACTION 11
 #define SAMPP_UI_EVENT_WORKSPACE_SPLIT 12
-
-#define SAMPP_EQUIP_HEAD 0
-#define SAMPP_EQUIP_MASK 1
-#define SAMPP_EQUIP_SHIRT 2
-#define SAMPP_EQUIP_ARMOR 3
-#define SAMPP_EQUIP_PANTS 4
-#define SAMPP_EQUIP_SHOES 5
-#define SAMPP_EQUIP_BACKPACK 6
-#define SAMPP_EQUIP_ACCESSORY 7
-#define SAMPP_EQUIP_PRIMARY_WEAPON 8
-#define SAMPP_EQUIP_SECONDARY_WEAPON 9
 
 #define SAMPP_CAPTURE_CONSUME_GAME_INPUT 1
 #define SAMPP_CAPTURE_BLOCK_SWITCH_WEAPON 2
@@ -304,13 +273,11 @@ native SetPlayerCheckpointColour(playerid, colour);
 native SetPlayerRaceCheckpointEx(playerid, type, Float:x, Float:y, Float:z, Float:point_x, Float:point_y, Float:point_z, Float:size, colour = 0xFF000020, period = 1024, Float:pulse = 0.1, rotation_rate = 0);
 native SetPlayerRaceCheckpointColour(playerid, colour);
 
-native ToggleHUDComponentForPlayer(playerid, componentid, bool:toggle);
 native SetRadioStationForPlayer(playerid, stationid);
 native SetWaveHeightForPlayer(playerid, Float:height);
 native SetWaveHeightForAll(Float:height);
 native TogglePauseMenuAbility(playerid, bool:toggle);
 native IsPlayerInPauseMenu(playerid);
-native SetPlayerHUDComponentColour(playerid, componentid, colour);
 native TogglePlayerAction(playerid, actionid, bool:toggle);
 native SetPlayerBlurIntensity(playerid, intensity);
 native SetPlayerGameSpeed(playerid, Float:speed);
@@ -381,131 +348,14 @@ stock bool:SAMPP_TargetAddAction(playerid, targetid, optionid, const label[], co
 	return SAMPP_TargetAddRow(playerid, targetid, optionid, SAMPP_TARGET_ROW_ACTION, label, icon, true) != 0;
 }
 
-stock bool:SAMPP_TargetAddInfo(playerid, targetid, const text[])
-{
-	return SAMPP_TargetAddRow(playerid, targetid, 0, SAMPP_TARGET_ROW_INFO, text, "", false) != 0;
-}
-
-stock bool:SAMPP_TargetAddDialog(playerid, targetid, const text[])
-{
-	return SAMPP_TargetAddRow(playerid, targetid, 0, SAMPP_TARGET_ROW_DIALOG, text, "", false) != 0;
-}
-
-stock bool:SAMPP_TargetAddDivider(playerid, targetid)
-{
-	return SAMPP_TargetAddRow(playerid, targetid, 0, SAMPP_TARGET_ROW_DIVIDER, "", "", false) != 0;
-}
-
-stock bool:SAMPP_TargetAddHeader(playerid, targetid, const text[])
-{
-	return SAMPP_TargetAddRow(playerid, targetid, 0, SAMPP_TARGET_ROW_HEADER, text, "", false) != 0;
-}
-
-stock bool:SAMPP_TargetAddDisabled(playerid, targetid, optionid, const label[], const icon[] = "")
-{
-	return SAMPP_TargetAddRow(playerid, targetid, optionid, SAMPP_TARGET_ROW_DISABLED, label, icon, false) != 0;
-}
-
-stock bool:SAMPP_TargetAddToggle(playerid, targetid, optionid, const label[], const icon[] = "")
-{
-	return SAMPP_TargetAddRow(playerid, targetid, optionid, SAMPP_TARGET_ROW_TOGGLE, label, icon, true) != 0;
-}
-
-stock bool:SAMPP_TargetAddDanger(playerid, targetid, optionid, const label[], const icon[] = "")
-{
-	return SAMPP_TargetAddRow(playerid, targetid, optionid, SAMPP_TARGET_ROW_DANGER, label, icon, true) != 0;
-}
-
 stock bool:SAMPP_TargetBeginDirect(playerid, targetid, target_type, const title[], ttl_ms = 500, flags = 0)
 {
 	return SAMPP_TargetBeginEx(playerid, targetid, target_type, title, ttl_ms, flags | SAMPP_TARGET_FLAG_DIRECT_SELECT) != 0;
 }
 
-stock bool:SAMPP_CaptureKeyNearPoint(playerid, key, Float:x, Float:y, Float:z, Float:radius, const action[], priority = SAMPP_CAPTURE_PRIORITY_ITEM, ttl_ms = SAMPP_CAPTURE_LEASE_DEFAULT_MS, flags = SAMPP_CAPTURE_DEFAULT_FLAGS, event_mask = SAMPP_KEY_EVENT_DOWN)
-{
-	if (!IsUsingSAMPP(playerid))
-	{
-		return false;
-	}
-
-	if (GetPlayerDistanceFromPoint(playerid, x, y, z) > radius)
-	{
-		return false;
-	}
-
-	return SAMPP_BeginKeyCapture(playerid, key, event_mask, priority, ttl_ms, flags, action) != 0;
-}
-
-stock bool:SAMPP_CaptureKeyInAnyVehicle(playerid, key, const action[], priority = SAMPP_CAPTURE_PRIORITY_VEHICLE, ttl_ms = SAMPP_CAPTURE_LEASE_DEFAULT_MS, flags = SAMPP_CAPTURE_DEFAULT_FLAGS, event_mask = SAMPP_KEY_EVENT_DOWN)
-{
-	if (!IsUsingSAMPP(playerid) || !IsPlayerInAnyVehicle(playerid))
-	{
-		return false;
-	}
-
-	return SAMPP_BeginKeyCapture(playerid, key, event_mask, priority, ttl_ms, flags, action) != 0;
-}
-
-stock bool:SAMPP_CaptureKeyInVehicle(playerid, vehicleid, key, const action[], priority = SAMPP_CAPTURE_PRIORITY_VEHICLE, ttl_ms = SAMPP_CAPTURE_LEASE_DEFAULT_MS, flags = SAMPP_CAPTURE_DEFAULT_FLAGS, event_mask = SAMPP_KEY_EVENT_DOWN)
-{
-	if (!IsUsingSAMPP(playerid) || !IsPlayerInVehicle(playerid, vehicleid))
-	{
-		return false;
-	}
-
-	return SAMPP_BeginKeyCapture(playerid, key, event_mask, priority, ttl_ms, flags, action) != 0;
-}
-
-stock bool:SAMPP_CaptureKeyNearVehicle(playerid, vehicleid, key, Float:radius, const action[], priority = SAMPP_CAPTURE_PRIORITY_VEHICLE, ttl_ms = SAMPP_CAPTURE_LEASE_DEFAULT_MS, flags = SAMPP_CAPTURE_DEFAULT_FLAGS, event_mask = SAMPP_KEY_EVENT_DOWN)
-{
-	if (!IsUsingSAMPP(playerid))
-	{
-		return false;
-	}
-
-	new Float:x, Float:y, Float:z;
-	if (!GetVehiclePos(vehicleid, x, y, z))
-	{
-		return false;
-	}
-
-	return SAMPP_CaptureKeyNearPoint(playerid, key, x, y, z, radius, action, priority, ttl_ms, flags, event_mask);
-}
-
-stock bool:SAMPP_TargetHasUI(playerid)
-{
-	return IsUsingSAMPP(playerid) && SAMPP_HasFeature(playerid, SAMPP_FEATURE_TARGET);
-}
-
 stock bool:SAMPP_BuildHasUI(playerid)
 {
 	return IsUsingSAMPP(playerid) && SAMPP_HasFeature(playerid, SAMPP_FEATURE_BUILD);
-}
-
-stock bool:SAMPP_HasRmlUi(playerid)
-{
-	return IsUsingSAMPP(playerid) && ((SAMPP_GetClientCapabilities(playerid) & SAMPP_CAPABILITY_RMLUI) != 0);
-}
-
-stock bool:SAMPP_TargetBeginNearPoint(playerid, targetid, Float:x, Float:y, Float:z, Float:radius, const title[], ttl_ms = 500, flags = 0)
-{
-	if (!SAMPP_TargetHasUI(playerid))
-	{
-		return false;
-	}
-
-	if (GetPlayerDistanceFromPoint(playerid, x, y, z) > radius)
-	{
-		SAMPP_TargetClear(playerid);
-		return false;
-	}
-
-	if (!SAMPP_TargetBegin(playerid, targetid, title, ttl_ms, flags))
-	{
-		return false;
-	}
-
-	return true;
 }
 
 forward OnPlayerOpenPauseMenu(playerid);

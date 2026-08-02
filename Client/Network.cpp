@@ -461,7 +461,6 @@ namespace Network
 		bInitialized = false;
 		bConnected = false;
 		bServerHasPlugin = false;
-		bSafeHUDInitialized = false;
 		transportMode = TRANSPORT_DISABLED;
 		dwNextHelloAttempt = 0;
 		dwNextNativeInitAttempt = 0;
