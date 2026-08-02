@@ -516,6 +516,7 @@ void CGame::ToggleThermalVision(bool toggle)
 
 typedef void*(__cdecl* GetFrameFromName_t)(void* clump, const char* name);
 typedef void(__cdecl* RwFrameUpdateObjects_t)(void* frame);
+typedef void*(__thiscall* SpawnFlyingComponent_t)(void* automobile, int nodeIndex, unsigned int collisionType);
 
 namespace
 {
@@ -530,6 +531,12 @@ namespace
 		"wheel_lb_dummy",
 		"wheel_rb_dummy"
 	};
+	// CAutomobile layout (GTA SA 1.0 US, from plugin-sdk):
+	// m_damageManager is at +0x5A0 and wheel nodes at +0x648.
+	// GTA's damage-manager wheel order is RR, RF, RL, LF, while the
+	// OpenMP native order is FL, FR, RL, RR.
+	static const unsigned char damageWheelOffsets[] = { 0x08, 0x06, 0x07, 0x05 };
+	static const int wheelNodeIndexes[] = { 5, 2, 7, 4 };
 
 	DWORD gtaVehicle = 0;
 	if (!SampClient::ResolveVehicle(vehicleId, gtaVehicle))
@@ -543,6 +550,22 @@ namespace
 	{
 		CLog::Write("Wheel apply failed: vehicle=%u invalid GTA vehicle=%p", vehicleId, reinterpret_cast<void*>(pGtaVehicle));
 		return;
+	}
+
+	// Use GTA's actual component/damage path. Setting status 2 is the
+	// game's "missing/fallen off" state; SpawnFlyingComponent removes the
+	// wheel component instead of merely scaling its RenderWare frame.
+	if (CanAccess(reinterpret_cast<void*>(pGtaVehicle + 0x5A0 + damageWheelOffsets[wheelId]), 1))
+	{
+		unsigned char* wheelStatus = reinterpret_cast<unsigned char*>(pGtaVehicle + 0x5A0 + damageWheelOffsets[wheelId]);
+		*wheelStatus = detached ? 2 : 0;
+		if (detached)
+		{
+			SpawnFlyingComponent_t SpawnFlyingComponent = reinterpret_cast<SpawnFlyingComponent_t>(0x530300);
+			void* wheelNode = CMem::Get<void*>(pGtaVehicle + 0x648 + wheelNodeIndexes[wheelId] * sizeof(void*));
+			if (wheelNode && CanAccess(reinterpret_cast<void*>(0x530300), 4))
+				SpawnFlyingComponent(reinterpret_cast<void*>(pGtaVehicle), wheelNodeIndexes[wheelId], 1);
+		}
 	}
 
 	void* pRwClump = CMem::Get<void*>(pGtaVehicle + 0x18);
