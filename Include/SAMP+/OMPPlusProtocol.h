@@ -13,7 +13,6 @@ namespace OMPPlusProtocol
 	static const uint32_t CapabilityTargetUI = 0x00000004;
 	static const uint32_t CapabilityTargetUIV2 = 0x00000008;
 	static const uint32_t CapabilityBuildUI = 0x00000010;
-	static const uint32_t CapabilityRmlUi = 0x00000020;
 	static const uint32_t DefaultCapabilities = CapabilityNativeTransport | CapabilityKeyCapture;
 	static const uint8_t ClientInfoVersion = 1;
 	static const uint16_t ClientVersionMajor = 0;
@@ -25,7 +24,6 @@ namespace OMPPlusProtocol
 
 	enum Feature : uint32_t
 	{
-		FeatureHUD = 1 << 0,
 		FeatureKeybind = 1 << 1,
 		FeatureKeyCapture = 1 << 2,
 		FeatureAudio = 1 << 3,
@@ -34,7 +32,7 @@ namespace OMPPlusProtocol
 		FeatureTarget = 1 << 6,
 		FeatureBuild = 1 << 7,
 
-		DefaultFeatures = FeatureHUD | FeatureKeybind | FeatureKeyCapture
+		DefaultFeatures = FeatureKeybind | FeatureKeyCapture
 	};
 
 	enum BuildResult : uint8_t
@@ -153,11 +151,9 @@ namespace OMPPlusProtocol
 	};
 
 #define OMPPLUS_LEGACY_RPC_LIST(X) \
-	X(TOGGLE_HUD_COMPONENT) \
 	X(SET_RADIO_STATION) \
 	X(SET_WAVE_HEIGHT) \
 	X(TOGGLE_PAUSE_MENU) \
-	X(SET_HUD_COMPONENT_COLOUR) \
 	X(TOGGLE_ACTION) \
 	X(SET_CLIP_AMMO) \
 	X(SET_NO_RELOAD) \

@@ -2,8 +2,6 @@
 #include <SAMP+/client/CBuildManager.h>
 #include <SAMP+/client/CGraphics.h>
 #include <SAMP+/client/CKeyBinds.h>
-#include <SAMP+/client/CRmlUiManager.h>
-#include <SAMP+/client/CTargetManager.h>
 #include <SAMP+/client/Proxy/CDInput8DeviceProxy.h>
 
 namespace
@@ -15,17 +13,6 @@ namespace
 	const DWORD MouseReleaseOffsets[] =
 	{
 		DIMOFS_BUTTON0, DIMOFS_BUTTON1, DIMOFS_BUTTON2, DIMOFS_BUTTON3
-	};
-
-	const DWORD RmlKeyboardReleaseOffsets[] =
-	{
-		DIK_W, DIK_A, DIK_S, DIK_D,
-		DIK_UP, DIK_DOWN, DIK_LEFT, DIK_RIGHT,
-		DIK_SPACE, DIK_LSHIFT, DIK_RSHIFT,
-		DIK_LCONTROL, DIK_RCONTROL,
-		DIK_LMENU, DIK_RMENU,
-		DIK_RETURN, DIK_NUMPADENTER,
-		DIK_Q, DIK_E, DIK_F
 	};
 
 	DWORD WriteReleaseEvents(LPDIDEVICEOBJECTDATA data, DWORD capacity, const DWORD* offsets, DWORD offsetCount, DWORD& cursor)
@@ -154,19 +141,14 @@ HRESULT CDInput8DeviceProxy::GetDeviceState(DWORD a, LPVOID b)
 {
 	ResetIfRequested();
 
-	if (DINPUT_DEVICE_IS_MOUSE && (CRmlUiManager::ShouldCaptureMouse() || CTargetManager::ShouldCaptureMouse() || CBuildManager::ShouldCaptureMouse()))
+	if (DINPUT_DEVICE_IS_MOUSE && CBuildManager::ShouldCaptureMouse())
 	{
 		HRESULT hRes;
 
 		hRes = m_pDevice->GetDeviceState(a, b);
 		if (SUCCEEDED(hRes) && b)
 		{
-			if (CRmlUiManager::ShouldCaptureMouse())
-				CRmlUiManager::FilterMouseState(a, b);
-			else if (CTargetManager::ShouldCaptureMouse())
-				CTargetManager::FilterMouseState(a, b);
-			else
-				CBuildManager::FilterMouseState(a, b);
+			CBuildManager::FilterMouseState(a, b);
 		}
 
 		return hRes;
@@ -176,9 +158,7 @@ HRESULT CDInput8DeviceProxy::GetDeviceState(DWORD a, LPVOID b)
 	if (SUCCEEDED(hRes) && DINPUT_DEVICE_IS_KEYBOARD)
 	{
 		CKeyBinds::FilterKeyboardState(a, b);
-		CTargetManager::FilterKeyboardState(a, b);
 		CBuildManager::FilterKeyboardState(a, b);
-		CRmlUiManager::FilterKeyboardState(a, b);
 	}
 
     return hRes;
@@ -191,11 +171,9 @@ HRESULT CDInput8DeviceProxy::GetDeviceData(DWORD a, LPDIDEVICEOBJECTDATA b, LPDW
 	const DWORD requestedItems = c ? *c : 0;
 	HRESULT hRes = m_pDevice->GetDeviceData(a, b, c, d);
 
-	if (SUCCEEDED(hRes) && DINPUT_DEVICE_IS_MOUSE && (CRmlUiManager::ShouldCaptureMouse() || CTargetManager::ShouldCaptureMouse() || CBuildManager::ShouldCaptureMouse()))
+	if (SUCCEEDED(hRes) && DINPUT_DEVICE_IS_MOUSE && CBuildManager::ShouldCaptureMouse())
 	{
-		const bool rmlCapture = CRmlUiManager::ShouldCaptureMouse();
-		const bool targetCapture = CTargetManager::ShouldCaptureMouse();
-		const bool buildPlacementCapture = !rmlCapture && !targetCapture && CBuildManager::ShouldPassMouseMovement();
+		const bool buildPlacementCapture = CBuildManager::ShouldPassMouseMovement();
 		if (!c)
 			return hRes;
 		if (!b)
@@ -217,41 +195,21 @@ HRESULT CDInput8DeviceProxy::GetDeviceData(DWORD a, LPDIDEVICEOBJECTDATA b, LPDW
 			switch (b[readIndex].dwOfs)
 			{
 				case DIMOFS_X:
-					if (rmlCapture)
-						CRmlUiManager::AddMouseDelta(static_cast<LONG>(b[readIndex].dwData), 0, 0);
-					else if (targetCapture)
-						CTargetManager::AddMouseDelta(static_cast<LONG>(b[readIndex].dwData), 0, 0);
-					else
-						CBuildManager::AddMouseDelta(static_cast<LONG>(b[readIndex].dwData), 0, 0);
+					CBuildManager::AddMouseDelta(static_cast<LONG>(b[readIndex].dwData), 0, 0);
 					passEventToGame = buildPlacementCapture;
 					break;
 				case DIMOFS_Y:
-					if (rmlCapture)
-						CRmlUiManager::AddMouseDelta(0, static_cast<LONG>(b[readIndex].dwData), 0);
-					else if (targetCapture)
-						CTargetManager::AddMouseDelta(0, static_cast<LONG>(b[readIndex].dwData), 0);
-					else
-						CBuildManager::AddMouseDelta(0, static_cast<LONG>(b[readIndex].dwData), 0);
+					CBuildManager::AddMouseDelta(0, static_cast<LONG>(b[readIndex].dwData), 0);
 					passEventToGame = buildPlacementCapture;
 					break;
 				case DIMOFS_Z:
-					if (rmlCapture)
-						CRmlUiManager::AddMouseDelta(0, 0, static_cast<LONG>(b[readIndex].dwData));
-					else if (targetCapture)
-						CTargetManager::AddMouseDelta(0, 0, static_cast<LONG>(b[readIndex].dwData));
-					else
-						CBuildManager::AddMouseDelta(0, 0, static_cast<LONG>(b[readIndex].dwData));
+					CBuildManager::AddMouseDelta(0, 0, static_cast<LONG>(b[readIndex].dwData));
 					break;
 				case DIMOFS_BUTTON0:
 				case DIMOFS_BUTTON1:
 				case DIMOFS_BUTTON2:
 				case DIMOFS_BUTTON3:
-					if (rmlCapture)
-						break;
-					if (targetCapture)
-						CTargetManager::SetMouseButton((b[readIndex].dwOfs - DIMOFS_BUTTON0) / (DIMOFS_BUTTON1 - DIMOFS_BUTTON0), (b[readIndex].dwData & 0x80) != 0);
-					else
-						CBuildManager::SetMouseButton((b[readIndex].dwOfs - DIMOFS_BUTTON0) / (DIMOFS_BUTTON1 - DIMOFS_BUTTON0), (b[readIndex].dwData & 0x80) != 0);
+					CBuildManager::SetMouseButton((b[readIndex].dwOfs - DIMOFS_BUTTON0) / (DIMOFS_BUTTON1 - DIMOFS_BUTTON0), (b[readIndex].dwData & 0x80) != 0);
 					break;
 				default:
 					passEventToGame = buildPlacementCapture;
@@ -278,18 +236,7 @@ HRESULT CDInput8DeviceProxy::GetDeviceData(DWORD a, LPDIDEVICEOBJECTDATA b, LPDW
 
 	if (SUCCEEDED(hRes) && DINPUT_DEVICE_IS_KEYBOARD && c)
 	{
-		if (CRmlUiManager::ShouldNeutralizeKeyboard())
-		{
-			if (!b || (d & DIGDD_PEEK) != 0)
-			{
-				*c = 0;
-				return hRes;
-			}
-			*c = WriteReleaseEvents(b, requestedItems, RmlKeyboardReleaseOffsets, sizeof(RmlKeyboardReleaseOffsets) / sizeof(RmlKeyboardReleaseOffsets[0]), g_keyboardReleaseCursor);
-			return hRes;
-		}
-
-		if (CTargetManager::ShouldNeutralizeKeyboard() || CBuildManager::ShouldNeutralizeKeyboard())
+		if (CBuildManager::ShouldNeutralizeKeyboard())
 		{
 			if (!b)
 			{
@@ -302,9 +249,7 @@ HRESULT CDInput8DeviceProxy::GetDeviceData(DWORD a, LPDIDEVICEOBJECTDATA b, LPDW
 				return hRes;
 			}
 			DWORD offsets[32] = {};
-			const DWORD offsetCount = CTargetManager::ShouldNeutralizeKeyboard()
-				? CTargetManager::GetKeyboardReleaseOffsets(offsets, sizeof(offsets) / sizeof(offsets[0]))
-				: CBuildManager::GetKeyboardReleaseOffsets(offsets, sizeof(offsets) / sizeof(offsets[0]));
+			const DWORD offsetCount = CBuildManager::GetKeyboardReleaseOffsets(offsets, sizeof(offsets) / sizeof(offsets[0]));
 			*c = WriteReleaseEvents(b, requestedItems, offsets, offsetCount, g_keyboardReleaseCursor);
 			return hRes;
 		}
@@ -312,12 +257,9 @@ HRESULT CDInput8DeviceProxy::GetDeviceData(DWORD a, LPDIDEVICEOBJECTDATA b, LPDW
 		DWORD writeIndex = 0;
 		for (DWORD readIndex = 0; readIndex < *c; ++readIndex)
 		{
-			if (CKeyBinds::ShouldConsumeDirectInputOffset(b[readIndex].dwOfs)
-				|| CTargetManager::ShouldConsumeDirectInputEvent(b[readIndex].dwOfs, b[readIndex].dwData))
+			if (CKeyBinds::ShouldConsumeDirectInputOffset(b[readIndex].dwOfs))
 				continue;
 			if (CBuildManager::ShouldConsumeDirectInputEvent(b[readIndex].dwOfs, b[readIndex].dwData))
-				continue;
-			if (CRmlUiManager::ShouldConsumeDirectInputEvent(b[readIndex].dwOfs, b[readIndex].dwData))
 				continue;
 
 			if (writeIndex != readIndex)

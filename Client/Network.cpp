@@ -3,10 +3,7 @@
 #include <SAMP+/client/CBuildManager.h>
 #include <SAMP+/client/CKeyBinds.h>
 #include <SAMP+/client/CGameRakClient.h>
-#include <SAMP+/client/CRmlUiManager.h>
-#include <SAMP+/client/CTargetManager.h>
 #include <SAMP+/client/Network.h>
-#include <SAMP+/client/CHUD.h>
 #ifndef SAMPP_SAFE_CLIENT
 #include <SAMP+/client/CHooks.h>
 #include <SAMP+/client/CGame.h>
@@ -35,7 +32,6 @@ namespace Network
 	static DWORD dwNextInvalidNativeLog;
 	static std::string strAddress;
 	static unsigned short usPort;
-	static bool bSafeHUDInitialized;
 
 	void Shutdown();
 
@@ -53,34 +49,10 @@ namespace Network
 		return true;
 	}
 
-	static void InitializeSafeHUD()
-	{
-		if (bSafeHUDInitialized)
-			return;
-
-		CHUD::Initialize();
-		bSafeHUDInitialized = true;
-		CLog::Write("Safe HUD RPC handlers initialized");
-	}
-
 	static void ProcessSafeRPC(unsigned short usRpcId, RakNet::BitStream& bitStream)
 	{
 		switch (usRpcId)
 		{
-			case eRPC::TOGGLE_HUD_COMPONENT:
-			{
-				unsigned char ucComponent;
-				bool bToggle;
-
-				if (bitStream.Read(ucComponent) && bitStream.Read(bToggle))
-				{
-					InitializeSafeHUD();
-					CLog::Write("Safe RPC ToggleHUDComponent component=%u toggle=%u", ucComponent, bToggle ? 1 : 0);
-					CHUD::ToggleComponent(ucComponent, bToggle);
-				}
-
-				break;
-			}
 			case eRPC::SET_KEY_BIND:
 			{
 				unsigned short key;
@@ -141,16 +113,6 @@ namespace Network
 				CKeyBinds::ClearCaptures();
 				break;
 			}
-			case eRPC::TARGET_SET_CONTEXT:
-			{
-				CTargetManager::HandleSetContext(bitStream);
-				break;
-			}
-			case eRPC::TARGET_CLEAR_CONTEXT:
-			{
-				CTargetManager::ClearContext();
-				break;
-			}
 			case eRPC::BUILD_OPEN:
 			{
 				CBuildManager::HandleOpen(bitStream);
@@ -179,61 +141,6 @@ namespace Network
 			case eRPC::BUILD_REMOVE_TARGET:
 			{
 				CBuildManager::HandleRemoveTarget(bitStream);
-				break;
-			}
-			case eRPC::UI_OPEN:
-			{
-				CRmlUiManager::HandleOpen(bitStream);
-				break;
-			}
-			case eRPC::UI_CLOSE:
-			{
-				CRmlUiManager::HandleClose(bitStream);
-				break;
-			}
-			case eRPC::UI_CLOSE_ALL:
-			{
-				CRmlUiManager::HandleCloseAll();
-				break;
-			}
-			case eRPC::UI_SET_DATA:
-			{
-				CRmlUiManager::HandleSetData(bitStream);
-				break;
-			}
-			case eRPC::UI_INVENTORY_CLEAR:
-			{
-				CRmlUiManager::HandleInventoryClear(bitStream);
-				break;
-			}
-			case eRPC::UI_INVENTORY_SET_SLOT:
-			{
-				CRmlUiManager::HandleInventorySetSlot(bitStream);
-				break;
-			}
-			case eRPC::UI_INVENTORY_SET_SLOT_ACTIONS:
-			{
-				CRmlUiManager::HandleInventorySetSlotActions(bitStream);
-				break;
-			}
-			case eRPC::UI_WORKSPACE_CLEAR:
-			{
-				CRmlUiManager::HandleWorkspaceClear(bitStream);
-				break;
-			}
-			case eRPC::UI_WORKSPACE_SET_PANE:
-			{
-				CRmlUiManager::HandleWorkspaceSetPane(bitStream);
-				break;
-			}
-			case eRPC::UI_WORKSPACE_SET_SLOT:
-			{
-				CRmlUiManager::HandleWorkspaceSetSlot(bitStream);
-				break;
-			}
-			case eRPC::UI_WORKSPACE_SET_SLOT_ACTIONS:
-			{
-				CRmlUiManager::HandleWorkspaceSetSlotActions(bitStream);
 				break;
 			}
 			default:
@@ -387,9 +294,7 @@ namespace Network
 				{
 					bServerHasPlugin = false;
 					CKeyBinds::Clear();
-					CTargetManager::ClearContext();
 					CBuildManager::Clear();
-					CRmlUiManager::Clear();
 
 					break;
 				}
@@ -398,9 +303,7 @@ namespace Network
 				{
 					bConnected = false;
 					CKeyBinds::Clear();
-					CTargetManager::ClearContext();
 					CBuildManager::Clear();
-					CRmlUiManager::Clear();
 
 					if (ServerHasPlugin())
 						Connect();
@@ -544,9 +447,7 @@ namespace Network
 	void Shutdown()
 	{
 		CKeyBinds::Clear();
-		CTargetManager::ClearContext();
 		CBuildManager::Clear();
-		CRmlUiManager::Clear();
 
 		if (transportMode == TRANSPORT_NATIVE_RAKCLIENT)
 			CGameRakClient::Shutdown();

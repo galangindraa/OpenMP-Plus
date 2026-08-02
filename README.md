@@ -24,13 +24,10 @@ Prebuilt Windows binaries may need to be rebuilt from this source tree before th
 - Native RPC `220` handshake over the existing player connection
 - Legacy fallback config reader with open.mp `config.json` and legacy `server.cfg`
 - `IsUsingSAMPP(playerid)` compatibility native detection
-- HUD component toggle RPCs
 - Safe keybind callbacks using WinAPI keyboard polling
 - Keybind callbacks are suppressed while SA-MP chat input is active.
 - Server-driven target UI and experimental build UI demos through the native
   RPC bridge.
-- RmlUi-oriented panel bridge for larger Pawn-driven interfaces such as
-  inventory, storage, crafting, phone/tablet, and base management.
 - `OnPlayerSAMPPKey(playerid, keyid, keystate, action[])`
 
 Previous smoke tests confirmed the safe feature subset:
@@ -57,7 +54,6 @@ git submodule update --init --recursive
 
 Detailed setup notes are also available in [docs/INSTALL.md](docs/INSTALL.md).
 The experimental build UI demo is documented in [docs/BUILD_DEMO.md](docs/BUILD_DEMO.md).
-The large panel UI bridge is documented in [docs/RMLUI.md](docs/RMLUI.md).
 
 ### Server
 
@@ -71,11 +67,6 @@ Native open.mp mode installs these files on the server:
 Optional smoke-test files:
 
 ```text
-<openmp-server>\filterscripts\sampp_smoketest.amx
-<openmp-server>\filterscripts\sampp_itemdemo.amx
-<openmp-server>\filterscripts\sampp_menudemo.amx
-<openmp-server>\filterscripts\sampp_capabilitydemo.amx
-<openmp-server>\filterscripts\sampp_targetdemo.amx
 <openmp-server>\filterscripts\sampp_builddemo.amx
 ```
 
@@ -154,163 +145,18 @@ The ASI now defaults to native RakClient transport. To force the old side-channe
 
 No installer is currently shipped. The old SA-MP+ installer was removed because it targeted the archived project and could install unsafe or outdated client files.
 
-## Smoke Test
+## Build Demo
 
-Example smoke-test files are provided in:
-
-```text
-examples/filterscripts/sampp_smoketest.pwn
-examples/filterscripts/sampp_smoketest.amx
-examples/filterscripts/sampp_itemdemo.pwn
-examples/filterscripts/sampp_itemdemo.amx
-examples/filterscripts/sampp_menudemo.pwn
-examples/filterscripts/sampp_menudemo.amx
-examples/filterscripts/sampp_capabilitydemo.pwn
-examples/filterscripts/sampp_capabilitydemo.amx
-examples/filterscripts/sampp_targetdemo.pwn
-examples/filterscripts/sampp_targetdemo.amx
-examples/filterscripts/sampp_builddemo.pwn
-examples/filterscripts/sampp_builddemo.amx
-examples/filterscripts/sampp_inventorydemo.pwn
-examples/filterscripts/sampp_inventorydemo.amx
-```
-
-Copy the `.amx` files you want to test to your open.mp server `filterscripts` directory, then add them to your open.mp config:
+The retained example is the build demo. Copy `sampp_builddemo.amx` to the
+open.mp server `filterscripts` directory, then add it to your configuration:
 
 ```json
 "pawn": {
     "side_scripts": [
-        "filterscripts/sampp_smoketest",
-        "filterscripts/sampp_itemdemo",
-        "filterscripts/sampp_menudemo",
-        "filterscripts/sampp_capabilitydemo",
-        "filterscripts/sampp_targetdemo",
-        "filterscripts/sampp_builddemo",
-        "filterscripts/sampp_inventorydemo"
+        "filterscripts/sampp_builddemo"
     ]
 }
 ```
-
-Smoke-test commands:
-
-- `/sampp`
-- `/sampphelp`
-- `/samppkeys`
-- `/samppmoney` or `/sampphud`
-- `/samppammo`
-- `/samppweapon`
-- `/sampphealth`
-- `/samppbreath`
-- `/sampparmour` or `/sampparmor`
-- `/samppmap`
-- `/samppcrosshair`
-- `/samppall`
-
-Smoke-test keybinds:
-
-- `F2`: show help
-- `B`: toggle money HUD
-
-Item demo commands:
-
-- `/itemadd`: create a Water Bottle object at your position
-- `/itemkeys`: reset the contextual `E` capture state
-- `/itempickup`: fallback command for pickup testing
-- `/itemclear`: remove all demo items
-
-Item demo keybind:
-
-- `E`: pick up the nearest Water Bottle through a short-lived capture lease.
-  GTA's default `E` behavior is consumed only while the player is near the item.
-  When `sampp_inventorydemo` is loaded, the picked-up Water Bottle is added to
-  the server-owned inventory demo instead of being only deleted from the world.
-
-Inventory demo commands:
-
-- `/inventorydemo` or `/invdemo`: open the character workspace. Equipment is
-  shown on the left, player inventory on the right.
-- `/inventorysimple` or `/invdemo_simple`: open the older single-grid
-  inventory panel for compatibility testing.
-- `/storagedemo` or `/chestdemo`: open a storage workspace. The chest/storage
-  pane and the player inventory pane can exchange items through drag/drop.
-- `/craftdemo`: open a crafting workspace with recipes, queue/details, and
-  player inventory panes.
-- `/inventoryclose` or `/invclose`: close the inventory panel from Pawn.
-- `/inventoryreset` or `/invreset`: reset the demo inventory to its default
-  items.
-
-Inventory demo flow:
-
-- Drag a used slot onto another slot to move, merge matching item IDs, or swap
-  different items. The client only reports the drag request; Pawn owns the item
-  arrays and refreshes the UI.
-- Right-click a used slot to open its Pawn-defined action menu. The bundled
-  demo exposes `Use`, `Split Stack`, `Drop`, and `Inspect` where the item type
-  supports them.
-- `Split Stack` opens a small amount selector in both the single inventory and
-  workspace panes. The client only sends the requested amount plus pane context;
-  Pawn validates the source stack and creates the new stack.
-- Drag a Water Bottle outside the single inventory panel or a workspace
-  inventory pane to drop it back into the world through `sampp_itemdemo`. Walk
-  near it and press `E` to pick it up into the inventory again.
-- In `/inventorydemo`, drag compatible items such as Kevlar Vest or Backpack
-  into equipment slots. Pawn validates the target slot type before changing the
-  real item state.
-- In `/storagedemo`, drag items between the storage pane and inventory pane.
-  This is the same flow a server can reuse for loot chests, trunks, lockers, or
-  another player's loot inventory.
-- In `/craftdemo`, select a recipe such as Foundation Kit or Hatchet. Pawn
-  checks materials, consumes them, and inserts the output into inventory. The
-  client only displays the workspace and reports the requested recipe action.
-
-Menu demo commands:
-
-- `/menutoggle` or `/menu`: open/close the TextDraw menu without the keybind
-- `/menukeys`: rebind `M` through SA-MP+
-- `/menuhelp`: list menu-demo commands
-
-Menu demo keybind:
-
-- `M`: open/close a player TextDraw menu through `OnPlayerSAMPPKey`
-
-Capability/context demo commands:
-
-- `/capinfo` or `/ompinfo`: show negotiated client version, feature flags,
-  capabilities, hash prefix, and launcher verification flag
-- `/capspawn`: create one demo item and one demo vehicle for the player
-- `/capitem`: create only the contextual pickup item
-- `/capveh`: create only the contextual vehicle
-- `/cappickup`, `/capenter`, `/capengine`, `/capbonnet`, `/capboot`,
-  `/capdoors`, `/caplock`: fallback commands when key capture is unavailable
-- `/capclear`: remove the player's demo item, vehicle, and active capture leases
-
-Capability/context demo keybind:
-
-- `E`: context-sensitive interaction. Near the item it picks up the item, near
-  the demo vehicle it enters the vehicle, and inside the demo vehicle it runs
-  the engine action. The script leases `E` only while a valid context exists, so
-  normal GTA behavior is left alone outside those contexts.
-- Inside the demo vehicle, `H` toggles the hood/bonnet, `J` toggles the
-  trunk/boot, `K` opens/closes the physical car doors, and `L` locks/unlocks the
-  vehicle doors. These are also short-lived capture leases and are released when
-  the player leaves the demo vehicle.
-
-Target demo commands:
-
-- `/targetinfo`: show client target/UI feature support
-- `/targetveh`: spawn a server-driven target vehicle
-- `/targetclear`: remove the target vehicle and clear the active target context
-
-Target demo flow:
-
-- Stand near the `/targetveh` vehicle. The client receives a short-lived target
-  context and draws the center eye indicator through the client-side ImGui
-  overlay.
-- Press `ALT` once to open target mode. Mouse and movement input are taken by
-  the ImGui overlay, and GTA camera movement is suppressed while the menu is
-  open.
-- Click an option. The client sends only `targetid + optionid`; the component
-  validates that the target context is still active before calling Pawn.
 
 ## Helper Scripts
 
@@ -396,18 +242,6 @@ Client capability API:
 - `SAMPP_GetClientVersion(playerid, &major, &minor, &patch)`
 - `SAMPP_GetClientHash(playerid, dest[], size = sizeof dest)`
 - `SAMPP_IsLauncherVerified(playerid)`
-- `SAMPP_FEATURE_TARGET` indicates support for the client-side ImGui target
-  overlay/menu feature.
-
-Target UI API:
-
-- `SAMPP_TargetBegin(playerid, targetid, const title[], ttl_ms = 500, flags = 0)`
-- `SAMPP_TargetAddOption(playerid, targetid, optionid, const label[], const icon[] = "", bool:enabled = true)`
-- `SAMPP_TargetCommit(playerid, targetid)`
-- `SAMPP_TargetClear(playerid)`
-- `OnPlayerOMPPlusTargetMode(playerid, targetid, bool:opened)`
-- `OnPlayerOMPPlusTargetSelect(playerid, targetid, optionid)`
-
 The native HELLO handshake now reports the client version, supported feature
 flags, a hash of the loaded ASI, and a launcher verification flag. This is for
 compatibility and feature gating. `SAMPP_IsLauncherVerified` is currently false

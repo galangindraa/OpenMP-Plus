@@ -48,10 +48,6 @@ Recommended native component layout:
     include/
       sampp.inc
   filterscripts/
-    sampp_smoketest.amx
-    sampp_itemdemo.amx
-    sampp_capabilitydemo.amx
-    sampp_targetdemo.amx
     sampp_builddemo.amx
 ```
 
@@ -70,15 +66,11 @@ top-level `components` key absent and let open.mp load the directory normally.
 If your server already uses a full explicit top-level `components` list, add
 `omp-plus` to that full list without removing the other required components.
 
-To load the smoke-test and capability demo filterscripts, add them under
-`pawn.side_scripts`:
+To load the build demo filterscript, add it under `pawn.side_scripts`:
 
 ```json
 "pawn": {
     "side_scripts": [
-        "filterscripts/sampp_smoketest",
-        "filterscripts/sampp_capabilitydemo",
-        "filterscripts/sampp_targetdemo",
         "filterscripts/sampp_builddemo"
     ]
 }
@@ -90,17 +82,6 @@ should own `/builddemo` and the build callbacks for a player session.
 
 Useful in-game checks:
 
-- `/sampp`: basic native transport and client-info smoke test.
-- `/capinfo`: version, feature flags, capabilities, hash prefix, and launcher
-  verification flag.
-- `/capspawn`: context-priority demo for `E`; item pickup, vehicle entry, and
-  in-vehicle engine action use short-lived capture leases instead of a global
-  keybind.
-- Inside the `/capspawn` demo vehicle, `H` toggles hood/bonnet, `J` toggles
-  trunk/boot, `K` opens/closes physical doors, and `L` locks/unlocks the vehicle.
-- `/targetveh`: server-driven target UI demo. Stand near the spawned vehicle,
-  press `ALT` once to open the mouse menu, and select an option. The server
-  validates the selected `targetid` and `optionid` before Pawn callbacks run.
 - `/builddemo`: experimental server-authoritative build UI demo. The client
   renders the build menu and sends select/place/cancel requests; Pawn creates
   the real objects only after validating the request. Wall, Door Frame, Floor,
@@ -185,8 +166,6 @@ the ASI reports:
 
 - OpenMP-Plus client version.
 - Supported feature flags such as HUD, keybind and key capture.
-- Target UI support when the ASI can render the Dear ImGui overlay and suppress
-  mouse camera input while target mode is open.
 - SHA-256 hash of the loaded ASI when Windows CryptoAPI can read it.
 - Launcher verification status. This is currently informational and should not
   be treated as anti-cheat proof.

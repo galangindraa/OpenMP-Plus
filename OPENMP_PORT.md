@@ -41,7 +41,6 @@ the native transport:
 - `/sampparmour` and `/sampparmor` toggle the armour bar.
 - `/samppmap` toggles the minimap.
 - `/samppcrosshair` toggles the crosshair.
-- `/samppall` toggles all supported HUD components together.
 - `/samppkeys` registers smoke-test keybinds.
 - F2 triggers the help action through `OnPlayerSAMPPKey`.
 - B triggers the money HUD action through `OnPlayerSAMPPKey`.
@@ -95,7 +94,6 @@ Previously live verified in the safe feature subset:
 
 Risk tiers:
 
-- Low: HUD component toggles, simple stored player state, read-only native checks.
 - Medium: HUD colours, radio/wave/game-speed style direct memory writes, keybind polling callbacks.
 - High: resolution callbacks, pause menu, mouse/radio/stunt callbacks, D3D/Input proxy hooks.
 - Highest: checkpoint internals, player action blocking, weapon/reload patches, cross-version GTA addresses.

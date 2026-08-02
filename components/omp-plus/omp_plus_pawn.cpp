@@ -55,22 +55,6 @@ namespace
 		return 1;
 	}
 
-	cell AMX_NATIVE_CALL ToggleHUDComponentForPlayerProc(AMX*, cell* params)
-	{
-		NetworkBitStream stream;
-		WriteCell<uint8_t>(stream, params[2]);
-		stream.Write(params[3] != 0);
-		return Component()->sendLegacyRPC(static_cast<int>(params[1]), TOGGLE_HUD_COMPONENT, &stream) ? 1 : 0;
-	}
-
-	cell AMX_NATIVE_CALL SetPlayerHUDComponentColourProc(AMX*, cell* params)
-	{
-		NetworkBitStream stream;
-		WriteCell<uint8_t>(stream, params[2]);
-		WriteCell<uint32_t>(stream, params[3]);
-		return Component()->sendLegacyRPC(static_cast<int>(params[1]), SET_HUD_COMPONENT_COLOUR, &stream) ? 1 : 0;
-	}
-
 	cell AMX_NATIVE_CALL SetRadioStationForPlayerProc(AMX*, cell* params)
 	{
 		return SendUInt8(params[1], SET_RADIO_STATION, params[2]);
@@ -696,13 +680,11 @@ namespace
 AMX_NATIVE_INFO OMPPlusNatives[] =
 {
 	{ "SAMPP_ExecuteCallback", CallbackProc },
-	{ "ToggleHUDComponentForPlayer", ToggleHUDComponentForPlayerProc },
 	{ "SetRadioStationForPlayer", SetRadioStationForPlayerProc },
 	{ "SetWaveHeightForPlayer", SetWaveHeightForPlayerProc },
 	{ "SetWaveHeightForAll", SetWaveHeightForAllProc },
 	{ "TogglePauseMenuAbility", TogglePauseMenuAbilityProc },
 	{ "IsPlayerInPauseMenu", IsPlayerInPauseMenuProc },
-	{ "SetPlayerHUDComponentColour", SetPlayerHUDComponentColourProc },
 	{ "SetPlayerCheckpointEx", SetPlayerCheckpointExProc },
 	{ "SetPlayerRaceCheckpointEx", SetPlayerRaceCheckpointExProc },
 	{ "SetPlayerCheckpointColour", SetPlayerCheckpointColourProc },
@@ -744,32 +726,11 @@ AMX_NATIVE_INFO OMPPlusNatives[] =
 	{ "SAMPP_BeginKeyCapture", BeginKeyCaptureProc },
 	{ "SAMPP_EndKeyCapture", EndKeyCaptureProc },
 	{ "SAMPP_ClearKeyCaptures", ClearKeyCapturesProc },
-	{ "SAMPP_TargetBegin", TargetBeginProc },
-	{ "SAMPP_TargetBeginEx", TargetBeginExProc },
-	{ "SAMPP_TargetSetLayout", TargetSetLayoutProc },
-	{ "SAMPP_TargetSetDescription", TargetSetDescriptionProc },
-	{ "SAMPP_TargetAddOption", TargetAddOptionProc },
-	{ "SAMPP_TargetAddRow", TargetAddRowProc },
-	{ "SAMPP_TargetCommit", TargetCommitProc },
-	{ "SAMPP_TargetClear", TargetClearProc },
 	{ "SAMPP_BuildOpen", BuildOpenProc },
 	{ "SAMPP_BuildClose", BuildCloseProc },
 	{ "SAMPP_BuildClearParts", BuildClearPartsProc },
 	{ "SAMPP_BuildAddPart", BuildAddPartProc },
 	{ "SAMPP_BuildSendResult", BuildSendResultProc },
 	{ "SAMPP_BuildSetRemoveTarget", BuildSetRemoveTargetProc },
-	{ "SAMPP_UIOpen", UiOpenProc },
-	{ "SAMPP_UIClose", UiCloseProc },
-	{ "SAMPP_UICloseAll", UiCloseAllProc },
-	{ "SAMPP_UISetData", UiSetDataProc },
-	{ "SAMPP_InventoryOpen", InventoryOpenProc },
-	{ "SAMPP_InventoryClear", InventoryClearProc },
-	{ "SAMPP_InventorySetSlot", InventorySetSlotProc },
-	{ "SAMPP_InventorySetSlotActions", InventorySetSlotActionsProc },
-	{ "SAMPP_WorkspaceOpen", WorkspaceOpenProc },
-	{ "SAMPP_WorkspaceClear", WorkspaceClearProc },
-	{ "SAMPP_WorkspaceSetPane", WorkspaceSetPaneProc },
-	{ "SAMPP_WorkspaceSetSlot", WorkspaceSetSlotProc },
-	{ "SAMPP_WorkspaceSetSlotActions", WorkspaceSetSlotActionsProc },
 	{ nullptr, nullptr }
 };

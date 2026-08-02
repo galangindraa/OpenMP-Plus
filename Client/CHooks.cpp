@@ -4,7 +4,6 @@
 #include <SAMP+/client/CBuildManager.h>
 #include <SAMP+/client/CLog.h>
 #include <SAMP+/client/COverlayRenderer.h>
-#include <SAMP+/client/CTargetManager.h>
 #include <SAMP+/client/Proxy/CJmpProxy.h>
 
 #include <Detours/detours.h>
@@ -42,7 +41,7 @@ namespace
 
 	bool ShouldNeutralizePadControls()
 	{
-		return CTargetManager::ShouldBlockGameControls() || CBuildManager::ShouldBlockGameControls();
+		return CBuildManager::ShouldBlockGameControls();
 	}
 
 	bool ShouldNeutralizeWeaponCycleControls()

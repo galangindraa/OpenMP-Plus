@@ -1,5 +1,4 @@
 #include <SAMP+/client/CRPCCallback.h>
-#include <SAMP+/client/CHUD.h>
 #include <SAMP+/client/CGame.h>
 #include <SAMP+/client/CKeyBinds.h>
 #include <SAMP+/client/CHooks.h>
@@ -27,11 +26,9 @@ namespace
 
 void CRPCCallback::Initialize()
 {
-	CRPC::Add(eRPC::TOGGLE_HUD_COMPONENT, ToggleHUDComponent);
 	CRPC::Add(eRPC::SET_RADIO_STATION, SetRadioStation);
 	CRPC::Add(eRPC::SET_WAVE_HEIGHT, SetWaveHeight);
 	CRPC::Add(eRPC::TOGGLE_PAUSE_MENU, TogglePauseMenu);
-	CRPC::Add(eRPC::SET_HUD_COMPONENT_COLOUR, SetHUDComponentColour);
 	CRPC::Add(eRPC::SET_CHECKPOINT_EX, SetPlayerCheckpointEx);
 	CRPC::Add(eRPC::SET_RACE_CHECKPOINT_EX, SetPlayerRaceCheckpointEx);
 	CRPC::Add(eRPC::SET_CHECKPOINT_COLOUR, SetCheckpointColour);
@@ -63,29 +60,6 @@ void CRPCCallback::Initialize()
 
 	CGame::OnResolutionChange(*(int*)0x0C9C040, *(int*)0x0C9C044);
 	CMem::InstallJmp(0x0584770, CJmpProxy::MarkersHook, CJmpProxy::MarkersHookJmpBack, 6);
-}
-
-RPC_CALLBACK CRPCCallback::ToggleHUDComponent(RPC_ARGS)
-{
-	unsigned char ucComponent;
-	bool bToggle;
-
-	if (bsData.Read(ucComponent) && bsData.Read(bToggle))
-		CHUD::ToggleComponent(ucComponent, bToggle);
-
-}
-
-RPC_CALLBACK CRPCCallback::SetHUDComponentColour(RPC_ARGS)
-{
-	unsigned char ucComponent;
-	DWORD dwColour;
-
-	if (bsData.Read(ucComponent) && bsData.Read(dwColour))
-	{
-		RakNet::BitStream::ReverseBytesInPlace((unsigned char*)&dwColour, sizeof(DWORD));
-
-		CHUD::SetComponentColour(ucComponent, dwColour);
-	}
 }
 
 RPC_CALLBACK CRPCCallback::SetKeyBind(RPC_ARGS)

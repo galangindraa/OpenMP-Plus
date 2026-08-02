@@ -3,7 +3,6 @@
 #include <SAMP+/client/CGameRakClient.h>
 #include <SAMP+/client/CKeyBinds.h>
 #include <SAMP+/client/COverlayRenderer.h>
-#include <SAMP+/client/CTargetManager.h>
 #ifndef SAMPP_SAFE_CLIENT
 #include <SAMP+/client/CHooks.h>
 #endif

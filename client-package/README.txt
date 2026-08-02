@@ -8,7 +8,6 @@ with -sampp_legacy_sidechannel while testing legacy servers.
 
 Enabled safe features:
 - Native OMP+ handshake over the existing game connection.
-- Limited HUD component toggle RPCs.
 - Limited keybind callbacks through WinAPI keyboard polling.
 
 The keybind implementation imports USER32.dll for GetAsyncKeyState, but it does

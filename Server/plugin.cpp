@@ -44,24 +44,6 @@ cell AMX_NATIVE_CALL CallbackProc(AMX* pAmx, cell* pParams)
 	return Callback::Process(pAmx, (Callback::eCallbackType)pParams[1], &pParams[2]);
 }
 
-cell AMX_NATIVE_CALL ToggleHUDComponentForPlayerProc(AMX* pAmx, cell* pParams)
-{
-	RakNet::BitStream bitStream;
-	bitStream.WriteCasted<unsigned char, cell>(pParams[2]); // component
-	bitStream.Write(!!pParams[3]); // toggle
-
-	return Network::PlayerSendRPC(eRPC::TOGGLE_HUD_COMPONENT, pParams[1], &bitStream);
-}
-
-cell AMX_NATIVE_CALL SetPlayerHUDComponentColourProc(AMX* pAmx, cell* pParams)
-{
-	RakNet::BitStream bitStream;
-	bitStream.WriteCasted<unsigned char, cell>(pParams[2]); // colour component
-	bitStream.WriteCasted<unsigned int, cell>(pParams[3]); // colour
-
-	return Network::PlayerSendRPC(eRPC::SET_HUD_COMPONENT_COLOUR, pParams[1], &bitStream);
-}
-
 cell AMX_NATIVE_CALL SetRadioStationForPlayerProc(AMX* pAmx, cell* pParams)
 {
 	if (IsPlayerInAnyVehicle(pParams[1]))
@@ -396,7 +378,7 @@ cell AMX_NATIVE_CALL HasFeatureProc(AMX* pAmx, cell* pParams)
 	if (!Network::isConnected(pParams[1]))
 		return 0;
 
-	const uint32_t features = OMPPlusProtocol::FeatureHUD | OMPPlusProtocol::FeatureKeybind | OMPPlusProtocol::FeatureKeyCapture;
+	const uint32_t features = OMPPlusProtocol::FeatureKeybind | OMPPlusProtocol::FeatureKeyCapture;
 	return (features & static_cast<uint32_t>(pParams[2])) != 0 ? 1 : 0;
 }
 
@@ -405,7 +387,7 @@ cell AMX_NATIVE_CALL GetClientFeatureFlagsProc(AMX* pAmx, cell* pParams)
 	if (!Network::isConnected(pParams[1]))
 		return 0;
 
-	return static_cast<cell>(OMPPlusProtocol::FeatureHUD | OMPPlusProtocol::FeatureKeybind | OMPPlusProtocol::FeatureKeyCapture);
+	return static_cast<cell>(OMPPlusProtocol::FeatureKeybind | OMPPlusProtocol::FeatureKeyCapture);
 }
 
 cell AMX_NATIVE_CALL GetClientCapabilitiesProc(AMX* pAmx, cell* pParams)
@@ -600,13 +582,11 @@ PLUGIN_EXPORT void PLUGIN_CALL Unload()
 AMX_NATIVE_INFO PluginNatives[] =
 {
 	{ "SAMPP_ExecuteCallback", CallbackProc },
-	{ "ToggleHUDComponentForPlayer", ToggleHUDComponentForPlayerProc },
 	{ "SetRadioStationForPlayer", SetRadioStationForPlayerProc },
 	{ "SetWaveHeightForPlayer", SetWaveHeightForPlayerProc },
 	{ "SetWaveHeightForAll", SetWaveHeightForAllProc },
 	{ "TogglePauseMenuAbility", TogglePauseMenuAbilityProc },
 	{ "IsPlayerInPauseMenu", IsPlayerInPauseMenuProc },
-	{ "SetPlayerHUDComponentColour", SetPlayerHUDComponentColourProc },
 	{ "SetPlayerCheckpointEx", SetPlayerCheckpointExProc },
 	{ "SetPlayerRaceCheckpointEx", SetPlayerRaceCheckpointExProc },
 	{ "SetPlayerCheckpointColour", SetPlayerCheckpointColourProc },

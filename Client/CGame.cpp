@@ -1,6 +1,5 @@
 #include <SAMP+/CRPC.h>
 #include <SAMP+/client/Client.h>
-#include <SAMP+/client/CHUD.h>
 #include <SAMP+/client/CGame.h>
 #include <SAMP+/client/CGraphics.h>
 #include <SAMP+/client/CKeyBinds.h>
@@ -9,8 +8,6 @@
 #include <SAMP+/client/Network.h>
 #include <SAMP+/client/CSystem.h>
 #include <SAMP+/client/CBuildManager.h>
-#include <SAMP+/client/CRmlUiManager.h>
-#include <SAMP+/client/CTargetManager.h>
 
 namespace
 {
@@ -218,7 +215,6 @@ void CGame::OnLoad()
 		else
 			Network::InitializeNative();
 		Network::Connect();
-		CHUD::Initialize();
 		
 		CGame::SetAircraftMaxHeight(800.0f);
 
@@ -235,7 +231,7 @@ void CGame::OnUnload()
 
 int CGame::OnCursorMove(int iX, int iY)
 {
-	return !CRmlUiManager::ShouldCaptureMouse() && !CTargetManager::IsMenuOpen() && !CBuildManager::ShouldBlockCursorMove();
+	return !CBuildManager::ShouldBlockCursorMove();
 }
 
 void CGame::PreDeviceReset()
@@ -514,7 +510,7 @@ void CGame::ToggleThermalVision(bool toggle)
 
 void CGame::ApplyTargetInputBlock()
 {
-	const bool active = CTargetManager::ShouldBlockGameControls() || CBuildManager::ShouldBlockGameControls();
+	const bool active = CBuildManager::ShouldBlockGameControls();
 
 	if (active != g_targetInputBlockWasActive)
 	{

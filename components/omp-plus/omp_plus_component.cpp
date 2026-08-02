@@ -692,7 +692,7 @@ bool OMPPlusComponent::openUi(int playerid, const std::string& documentid, uint8
 		return false;
 
 	OMPPlusPlayerState* state = getPlayerState(playerid);
-	if (!state || !(state->capabilities & OMPPlusProtocol::CapabilityRmlUi))
+	if (!state)
 		return false;
 
 	if (!IsValidUiTemplate(templateid))
@@ -1009,15 +1009,13 @@ uint32_t OMPPlusComponent::deriveLegacyFeatures(uint32_t capabilities) const
 {
 	uint32_t features = 0;
 	if (capabilities & OMPPlusProtocol::CapabilityNativeTransport)
-		features |= OMPPlusProtocol::FeatureHUD | OMPPlusProtocol::FeatureKeybind;
+		features |= OMPPlusProtocol::FeatureKeybind;
 	if (capabilities & OMPPlusProtocol::CapabilityKeyCapture)
 		features |= OMPPlusProtocol::FeatureKeyCapture;
 	if (capabilities & (OMPPlusProtocol::CapabilityTargetUI | OMPPlusProtocol::CapabilityTargetUIV2))
 		features |= OMPPlusProtocol::FeatureTarget | OMPPlusProtocol::FeatureUI;
 	if (capabilities & OMPPlusProtocol::CapabilityBuildUI)
 		features |= OMPPlusProtocol::FeatureBuild | OMPPlusProtocol::FeatureUI;
-	if (capabilities & OMPPlusProtocol::CapabilityRmlUi)
-		features |= OMPPlusProtocol::FeatureUI;
 	return features;
 }
 
@@ -1435,7 +1433,7 @@ void OMPPlusComponent::sendHelloAck(IPlayer& player)
 {
 	NetworkBitStream stream;
 	writeHeader(stream, OMPPlusProtocol::Message::HelloAck);
-	stream.Write(OMPPlusProtocol::DefaultCapabilities | OMPPlusProtocol::CapabilityTargetUI | OMPPlusProtocol::CapabilityTargetUIV2 | OMPPlusProtocol::CapabilityBuildUI | OMPPlusProtocol::CapabilityRmlUi);
+	stream.Write(OMPPlusProtocol::DefaultCapabilities | OMPPlusProtocol::CapabilityBuildUI);
 	player.sendRPC(OMPPlusProtocol::RpcID, Span<uint8_t>(stream.GetData(), stream.GetNumberOfBitsUsed()), OMPPlusProtocol::Channel);
 }
 

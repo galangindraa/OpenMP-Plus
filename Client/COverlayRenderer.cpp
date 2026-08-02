@@ -3,8 +3,6 @@
 #include <SAMP+/client/CGraphics.h>
 #include <SAMP+/client/CLog.h>
 #include <SAMP+/client/CBuildManager.h>
-#include <SAMP+/client/CRmlUiManager.h>
-#include <SAMP+/client/CTargetManager.h>
 #include <SAMP+/client/Proxy/CMessageProxy.h>
 
 #include <Detours/detours.h>
@@ -318,7 +316,6 @@ bool COverlayRenderer::EnsureInitialized(IDirect3DDevice9* device)
 
 	if (g_initialized)
 	{
-		CRmlUiManager::Shutdown();
 		ImGui_ImplDX9_Shutdown();
 		ImGui_ImplWin32_Shutdown();
 		ImGui::DestroyContext();
@@ -336,7 +333,6 @@ bool COverlayRenderer::EnsureInitialized(IDirect3DDevice9* device)
 	g_window = creationParameters.hFocusWindow;
 	CGraphics::AttachDevice(device);
 	CMessageProxy::Initialize(g_window);
-	CRmlUiManager::Initialize(g_window, device);
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -384,16 +380,12 @@ void COverlayRenderer::Render(IDirect3DDevice9* device)
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
 
-		CTargetManager::Process();
 		CBuildManager::Process();
-		CRmlUiManager::Process();
 		ImGui::GetIO().MouseDrawCursor = false;
-		CTargetManager::RenderImGui();
 		CBuildManager::RenderImGui();
 
 		ImGui::Render();
 		ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
-		CRmlUiManager::Render(device);
 		g_renderedSincePresent = true;
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER)
@@ -409,7 +401,6 @@ void COverlayRenderer::InvalidateDeviceObjects()
 	if (g_initialized)
 	{
 		ImGui_ImplDX9_InvalidateDeviceObjects();
-		CRmlUiManager::InvalidateDeviceObjects();
 	}
 }
 
@@ -418,7 +409,6 @@ void COverlayRenderer::RestoreDeviceObjects()
 	if (g_initialized)
 	{
 		ImGui_ImplDX9_CreateDeviceObjects();
-		CRmlUiManager::RestoreDeviceObjects();
 	}
 }
 
@@ -427,9 +417,6 @@ bool COverlayRenderer::HandleWndProc(HWND hWnd, UINT message, WPARAM wParam, LPA
 	if (!g_initialized)
 		return false;
 
-	if (CRmlUiManager::HandleWndProc(hWnd, message, wParam, lParam))
-		return true;
-
 	ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam);
 
 	switch (message)
@@ -437,7 +424,7 @@ bool COverlayRenderer::HandleWndProc(HWND hWnd, UINT message, WPARAM wParam, LPA
 	case WM_SETCURSOR:
 		return false;
 	case WM_MOUSEMOVE:
-		return CRmlUiManager::ShouldCaptureMouse() || CTargetManager::ShouldCaptureMouse() || CBuildManager::ShouldBlockCursorMove();
+		return CBuildManager::ShouldBlockCursorMove();
 	case WM_LBUTTONDOWN:
 	case WM_LBUTTONUP:
 	case WM_RBUTTONDOWN:
@@ -445,13 +432,13 @@ bool COverlayRenderer::HandleWndProc(HWND hWnd, UINT message, WPARAM wParam, LPA
 	case WM_MBUTTONDOWN:
 	case WM_MBUTTONUP:
 	case WM_MOUSEWHEEL:
-		return CRmlUiManager::ShouldCaptureMouse() || CTargetManager::ShouldCaptureMouse() || CBuildManager::ShouldCaptureMouse();
+		return CBuildManager::ShouldCaptureMouse();
 	case WM_KEYDOWN:
 	case WM_KEYUP:
 	case WM_SYSKEYDOWN:
 	case WM_SYSKEYUP:
 	case WM_CHAR:
-		return CRmlUiManager::ShouldSuppressKeyboard() || CTargetManager::ShouldSuppressKeyboard() || CBuildManager::ShouldSuppressKeyboard();
+		return CBuildManager::ShouldSuppressKeyboard();
 	default:
 		return false;
 	}
@@ -461,7 +448,6 @@ void COverlayRenderer::Shutdown()
 {
 	if (g_initialized)
 	{
-		CRmlUiManager::Shutdown();
 		ImGui_ImplDX9_Shutdown();
 		ImGui_ImplWin32_Shutdown();
 		ImGui::DestroyContext();

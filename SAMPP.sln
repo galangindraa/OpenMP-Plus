@@ -209,7 +209,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "client", "client", "{35FAAF
 		Include\SAMP+\client\CGame.h = Include\SAMP+\client\CGame.h
 		Include\SAMP+\client\CGraphics.h = Include\SAMP+\client\CGraphics.h
 		Include\SAMP+\client\CHooks.h = Include\SAMP+\client\CHooks.h
-		Include\SAMP+\client\CHUD.h = Include\SAMP+\client\CHUD.h
 		Include\SAMP+\client\Client.h = Include\SAMP+\client\Client.h
 		Include\SAMP+\client\CLocalPlayer.h = Include\SAMP+\client\CLocalPlayer.h
 		Include\SAMP+\client\CLog.h = Include\SAMP+\client\CLog.h

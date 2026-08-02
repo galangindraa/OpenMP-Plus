@@ -1,0 +1,35 @@
+version: 1.0.{build}
+
+image: Visual Studio 2022
+
+clone_depth: 1
+
+init:
+  - git config --global core.autocrlf input
+
+install:
+  - git submodule update --init --recursive
+
+platform: Win32
+configuration: Release
+
+# Build manually (instead of the declarative `build:` shortcut) so we can
+# force the project to use the toolset that's actually installed on this
+# image. The .vcxproj files still target the old VS2013 toolset (v120),
+# which this image doesn't have — override it to v143 (VS2022).
+build_script:
+  - cmd: msbuild SAMPP.sln /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=v143 /p:VisualStudioVersion=17.0 /m /verbosity:minimal
+
+after_build:
+  - ps: >-
+      $asi = Get-ChildItem -Path . -Recurse -Filter "sampp_client.asi" | Select-Object -First 1;
+
+      if (-not $asi) { Write-Error "sampp_client.asi not found after build."; exit 1 }
+
+      Write-Host "Found: $($asi.FullName)";
+
+      Copy-Item $asi.FullName -Destination "$env:APPVEYOR_BUILD_FOLDER\sampp_client.asi"
+
+artifacts:
+  - path: sampp_client.asi
+    name: sampp_client_asi

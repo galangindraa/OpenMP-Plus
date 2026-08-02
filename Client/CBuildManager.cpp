@@ -4,7 +4,6 @@
 #include <SAMP+/client/CGraphics.h>
 #include <SAMP+/client/CLog.h>
 #include <SAMP+/client/COverlayLayout.h>
-#include <SAMP+/client/CTargetManager.h>
 #include <SAMP+/client/Network.h>
 #include <SAMP+/client/Proxy/CDInput8DeviceProxy.h>
 #include <SAMP+/client/Proxy/CMessageProxy.h>
@@ -814,7 +813,6 @@ void CBuildManager::HandleOpen(RakNet::BitStream& bitStream)
 
 	cScopedBuildStateLock lock;
 	ClearUnlocked(true);
-	CTargetManager::ClearContext();
 
 	m_active = true;
 	m_menuOpen = true;

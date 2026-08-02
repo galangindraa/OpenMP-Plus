@@ -1,6 +1,5 @@
 #include <SAMP+/client/CGraphics.h>
 #include <SAMP+/client/COverlayRenderer.h>
-#include <SAMP+/client/CTargetManager.h>
 #include <SAMP+/client/Network.h>
 
 CPoint2D CGraphics::m_pResolution;
@@ -79,20 +78,14 @@ bool CGraphics::IsCursorEnabled()
 void CGraphics::OnReset()
 {
 	CLog::Write("CGraphics::OnReset");
-	CTargetManager::OnLostDevice();
 }
 
 void CGraphics::PostDeviceReset()
 {
 	CLog::Write("CGraphics::PostDeviceReset");
-	CTargetManager::OnResetDevice();
 }
 
-void CGraphics::PreEndScene()
-{
-	if (m_pDevice && Network::IsConnected() && !COverlayRenderer::HasRenderHook())
-		CTargetManager::Draw(m_pDevice);
-}
+void CGraphics::PreEndScene() {}
 
 void CGraphics::BeginScene()
 {
@@ -112,5 +105,4 @@ void CGraphics::CleanUp()
 		delete box;
 		box = nullptr;
 	}
-	CTargetManager::CleanUp();
 }
