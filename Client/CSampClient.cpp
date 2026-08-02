@@ -75,15 +75,28 @@ namespace
 
 	bool IsLikelyGtaVehicle(DWORD gtaVehicle)
 	{
-		if (!SampClient::CanRead(gtaVehicle, 0x20))
+		if (!SampClient::CanRead(gtaVehicle, 0x5A0))
 			return false;
 
 		DWORD gtaVtable = 0;
 		if (!SampClient::ReadPointer(gtaVehicle, gtaVtable) || !SampClient::IsExecutableAddress(gtaVtable))
 			return false;
 
-		// CEntity::m_pRwObject / clump pointer. May be null while streaming;
-		// still accept the entity if the vtable looks valid.
+		// CEntity::m_nModelIndex — peds/weapons are below 400; custom SA-MP
+		// vehicles may be above the stock 611 range.
+		if (!SampClient::CanRead(gtaVehicle + 0x22, sizeof(short)))
+			return false;
+		const short model = *reinterpret_cast<short*>(gtaVehicle + 0x22);
+		if (model < 400)
+			return false;
+
+		// CVehicle::m_nVehicleType
+		if (!SampClient::CanRead(gtaVehicle + 0x590, sizeof(unsigned int)))
+			return false;
+		const unsigned int vehicleType = *reinterpret_cast<unsigned int*>(gtaVehicle + 0x590);
+		if (vehicleType > 11)
+			return false;
+
 		return true;
 	}
 

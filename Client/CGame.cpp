@@ -777,35 +777,50 @@ namespace
 		return (wheelMask & 0x0Fu) == 0x0Fu;
 	}
 
+	bool IsValidVehicleEntity(uintptr_t pGtaVehicle)
+	{
+		if (!pGtaVehicle || !CanAccess(reinterpret_cast<void*>(pGtaVehicle), 0x5A0))
+			return false;
+
+		// CEntity::m_nModelIndex — vehicles start at 400 (custom models may be >611).
+		short* model = reinterpret_cast<short*>(pGtaVehicle + 0x22);
+		if (!CanAccess(model, sizeof(*model)))
+			return false;
+		if (*model < 400)
+			return false;
+
+		const unsigned int vehicleType = ReadVehicleType(pGtaVehicle);
+		if (vehicleType > VEHICLE_TRAILER)
+			return false;
+
+		// Must have handling data like a real CVehicle.
+		DWORD handling = 0;
+		if (!SampClient::ReadPointer(static_cast<DWORD>(pGtaVehicle + 0x384), handling) || !SampClient::CanRead(handling, 0xE0))
+			return false;
+
+		return true;
+	}
+
+	// Soft stop only — do not poke vehicle flags / turn speed / full brake.
+	// Those writes every render frame can freeze pad/mouse processing.
 	void ImmobilizeVehicleNoWheels(uintptr_t pGtaVehicle)
 	{
-		// CVehicle::m_fGasPedal / m_fBreakPedal
+		if (!IsValidVehicleEntity(pGtaVehicle))
+			return;
+
 		float* gasPedal = reinterpret_cast<float*>(pGtaVehicle + 0x49C);
-		float* brakePedal = reinterpret_cast<float*>(pGtaVehicle + 0x4A0);
 		if (CanAccess(gasPedal, sizeof(float)))
 			*gasPedal = 0.0f;
-		if (CanAccess(brakePedal, sizeof(float)))
-			*brakePedal = 1.0f;
 
-		// CVehicle::m_nVehicleFlags @ 0x428 — bIsHandbrakeOn is bit 5.
-		unsigned char* flags = reinterpret_cast<unsigned char*>(pGtaVehicle + 0x428);
-		if (CanAccess(flags, sizeof(unsigned char)))
-			*flags = static_cast<unsigned char>(*flags | 0x20u);
-
-		// CPhysical::m_vecMoveSpeed / m_vecTurnSpeed
 		float* moveSpeed = reinterpret_cast<float*>(pGtaVehicle + 0x44);
-		float* turnSpeed = reinterpret_cast<float*>(pGtaVehicle + 0x50);
 		if (CanAccess(moveSpeed, sizeof(float) * 3))
 		{
-			moveSpeed[0] = 0.0f;
-			moveSpeed[1] = 0.0f;
-			moveSpeed[2] = 0.0f;
-		}
-		if (CanAccess(turnSpeed, sizeof(float) * 3))
-		{
-			turnSpeed[0] = 0.0f;
-			turnSpeed[1] = 0.0f;
-			turnSpeed[2] = 0.0f;
+			moveSpeed[0] *= 0.5f;
+			moveSpeed[1] *= 0.5f;
+			moveSpeed[2] *= 0.5f;
+			if (moveSpeed[0] > -0.01f && moveSpeed[0] < 0.01f) moveSpeed[0] = 0.0f;
+			if (moveSpeed[1] > -0.01f && moveSpeed[1] < 0.01f) moveSpeed[1] = 0.0f;
+			if (moveSpeed[2] > -0.01f && moveSpeed[2] < 0.01f) moveSpeed[2] = 0.0f;
 		}
 	}
 
@@ -874,11 +889,18 @@ namespace
 			const int companionNode = carWheelCompanionNodes[wheelId];
 
 			// Dual-rear vehicles break if rear damage bytes are forced missing.
+			// Never mark the final wheel missing in the damage manager — SA can
+			// hang/corrupt controls when all four status bytes are 2.
 			if (!doubleRear)
 			{
 				unsigned char* wheelStatus = reinterpret_cast<unsigned char*>(pGtaVehicle + AutomobileDamageManagerOffset + carDamageWheelOffsets[wheelId]);
 				if (CanAccess(wheelStatus, sizeof(*wheelStatus)))
-					*wheelStatus = detached ? 2 : 0;
+				{
+					if (!detached)
+						*wheelStatus = 0;
+					else if (AutomobileHasOtherAttachedWheel(pGtaVehicle, wheelId))
+						*wheelStatus = 2;
+				}
 			}
 
 			void* wheelNode = GetAutomobileCarNode(pGtaVehicle, primaryNode);
@@ -965,11 +987,6 @@ namespace
 				g_spawnedFlyingWheels.erase(vehicleId);
 		}
 
-		// No remaining contact wheels → keep vehicle static (reapplied each frame).
-		std::map<unsigned short, unsigned char>::const_iterator detachedIt = g_detachedVehicleWheels.find(vehicleId);
-		const unsigned char detachedMask = (detachedIt != g_detachedVehicleWheels.end()) ? detachedIt->second : 0;
-		if (IsFullyWheelDetached(detachedMask, bikeLike))
-			ImmobilizeVehicleNoWheels(pGtaVehicle);
 	}
 }
 
@@ -1016,6 +1033,19 @@ namespace
 				if (it->second & (1u << wheelId))
 					ApplyVehicleWheelDetached(it->first, wheelId, true);
 			}
+
+			// Immobilize once per vehicle after wheel visuals, not per-wheel.
+			DWORD gtaVehicle = 0;
+			if (!SampClient::ResolveVehicle(it->first, gtaVehicle))
+				continue;
+
+			uintptr_t pGtaVehicle = static_cast<uintptr_t>(gtaVehicle);
+			if (!IsValidVehicleEntity(pGtaVehicle))
+				continue;
+
+			const unsigned int vehicleType = ReadVehicleType(pGtaVehicle);
+			if (IsFullyWheelDetached(it->second, IsBikeLike(vehicleType)))
+				ImmobilizeVehicleNoWheels(pGtaVehicle);
 		}
 	}
 }
@@ -1063,10 +1093,8 @@ void CGame::OnLeaveWater()
 
 void CGame::Present()
 {
-	// The server can send the state before a vehicle has streamed in. Reapply
-	// detached wheels while rendering so they are also removed once the vehicle
-	// becomes available and after GTA refreshes its frame transforms.
-	ReapplyDetachedVehicleWheels();
+	// Wheel reapply runs from PreEndScene only. Doing it again here doubled
+	// damage/flag writes per frame and could stall input.
 
 	//CGraphics::DrawString("Running SA-MP+ Pre-Alpha Release", 15, X, Y, D3DCOLOR_ARGB(255, 255, 255, 255));
 
