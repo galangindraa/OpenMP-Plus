@@ -50,6 +50,11 @@
 #define DEFAULT_BLUR_INTENSITY 36
 #define NO_BLUR_INTENSITY 0
 
+#define VEHICLE_WHEEL_FRONT_LEFT 0
+#define VEHICLE_WHEEL_FRONT_RIGHT 1
+#define VEHICLE_WHEEL_REAR_LEFT 2
+#define VEHICLE_WHEEL_REAR_RIGHT 3
+
 #define DEFAULT_AIRCRAFT_HEIGHT 800
 #define DEFAULT_JETPACK_HEIGHT 100
 
@@ -80,46 +85,6 @@
 #define SAMPP_CAPABILITY_BUILD_UI 16
 #define SAMPP_CAPABILITY_RMLUI 32
 
-#define SAMPP_UI_TEMPLATE_PANEL 0
-#define SAMPP_UI_TEMPLATE_INVENTORY 1
-#define SAMPP_UI_TEMPLATE_STORAGE 2
-#define SAMPP_UI_TEMPLATE_CRAFTING 3
-#define SAMPP_UI_TEMPLATE_PHONE 4
-#define SAMPP_UI_TEMPLATE_TABLET 5
-#define SAMPP_UI_TEMPLATE_WORKSPACE 6
-
-#define SAMPP_WORKSPACE_LAYOUT_AUTO 0
-#define SAMPP_WORKSPACE_LAYOUT_INVENTORY 1
-#define SAMPP_WORKSPACE_LAYOUT_STORAGE 2
-#define SAMPP_WORKSPACE_LAYOUT_CRAFTING 3
-#define SAMPP_WORKSPACE_LAYOUT_TRADE 4
-
-#define SAMPP_PANE_GRID 0
-#define SAMPP_PANE_EQUIPMENT 1
-#define SAMPP_PANE_STORAGE 2
-#define SAMPP_PANE_LOOT 3
-#define SAMPP_PANE_RECIPE_LIST 4
-#define SAMPP_PANE_CRAFT_QUEUE 5
-#define SAMPP_PANE_INFO 6
-
-#define SAMPP_UI_FLAG_MODAL 1
-#define SAMPP_UI_FLAG_CAPTURE_MOUSE 2
-#define SAMPP_UI_FLAG_CAPTURE_KEYBOARD 4
-#define SAMPP_UI_FLAG_CLOSE_ON_ESCAPE 8
-#define SAMPP_UI_DEFAULT_FLAGS (SAMPP_UI_FLAG_MODAL | SAMPP_UI_FLAG_CAPTURE_MOUSE | SAMPP_UI_FLAG_CAPTURE_KEYBOARD | SAMPP_UI_FLAG_CLOSE_ON_ESCAPE)
-
-#define SAMPP_UI_EVENT_CLICK 1
-#define SAMPP_UI_EVENT_SECONDARY_CLICK 2
-#define SAMPP_UI_EVENT_CLOSE 3
-#define SAMPP_UI_EVENT_SUBMIT 4
-#define SAMPP_UI_EVENT_SLOT_DROP 5
-#define SAMPP_UI_EVENT_WORLD_DROP 6
-#define SAMPP_UI_EVENT_INVENTORY_ACTION 7
-#define SAMPP_UI_EVENT_INVENTORY_SPLIT 8
-#define SAMPP_UI_EVENT_WORKSPACE_DROP 9
-#define SAMPP_UI_EVENT_WORKSPACE_WORLD_DROP 10
-#define SAMPP_UI_EVENT_WORKSPACE_ACTION 11
-#define SAMPP_UI_EVENT_WORKSPACE_SPLIT 12
 
 #define SAMPP_CAPTURE_CONSUME_GAME_INPUT 1
 #define SAMPP_CAPTURE_BLOCK_SWITCH_WEAPON 2
@@ -308,6 +273,8 @@ native ToggleWaterBuoyancy(playerid, bool:toggle);
 native ToggleUnderwaterEffect(playerid, bool:toggle);
 native ToggleNightVision(playerid, bool:toggle);
 native ToggleThermalVision(playerid, bool:toggle);
+native SetVehicleWheelDetached(vehicleid, wheelid, bool:detached);
+native bool:IsVehicleWheelDetached(vehicleid, wheelid);
 native SAMPP_BindKey(playerid, key, event_mask = SAMPP_KEY_EVENT_DOWN, const action[] = "");
 native SAMPP_UnbindKey(playerid, key);
 native SAMPP_ClearKeyBinds(playerid);
@@ -322,25 +289,8 @@ native SAMPP_TargetAddOption(playerid, targetid, optionid, const label[], const 
 native SAMPP_TargetAddRow(playerid, targetid, optionid, row_type, const label[], const icon[] = "", bool:enabled = true);
 native SAMPP_TargetCommit(playerid, targetid);
 native SAMPP_TargetClear(playerid);
-native SAMPP_BuildOpen(playerid, sessionid, const title[], Float:max_distance = 8.0);
-native SAMPP_BuildClose(playerid);
-native SAMPP_BuildClearParts(playerid);
-native SAMPP_BuildAddPart(playerid, partid, modelid, const name[], const category[] = "", const cost[] = "");
 native SAMPP_BuildSendResult(playerid, result, const message[]);
 native SAMPP_BuildSetRemoveTarget(playerid, bool:active, partid = SAMPP_BUILD_PART_NONE, const label[] = "", Float:distance = 0.0);
-native SAMPP_UIOpen(playerid, const documentid[], templateid, const title[], const body[] = "", flags = SAMPP_UI_DEFAULT_FLAGS, capacity = 0);
-native SAMPP_UIClose(playerid, const documentid[]);
-native SAMPP_UICloseAll(playerid);
-native SAMPP_UISetData(playerid, const documentid[], const key[], const value[]);
-native SAMPP_InventoryOpen(playerid, const documentid[], const title[], slots = 30, const body[] = "Server-driven inventory UI.", flags = SAMPP_UI_DEFAULT_FLAGS);
-native SAMPP_InventoryClear(playerid, const documentid[]);
-native SAMPP_InventorySetSlot(playerid, const documentid[], slot, itemid, amount, const label[], const description[] = "", const icon[] = "");
-native SAMPP_InventorySetSlotActions(playerid, const documentid[], slot, const actions[]);
-native SAMPP_WorkspaceOpen(playerid, const documentid[], layout, const title[], const body[] = "", flags = SAMPP_UI_DEFAULT_FLAGS);
-native SAMPP_WorkspaceClear(playerid, const documentid[]);
-native SAMPP_WorkspaceSetPane(playerid, const documentid[], const paneid[], pane_type, const title[], capacity = 0, const body[] = "");
-native SAMPP_WorkspaceSetSlot(playerid, const documentid[], const paneid[], slot, itemid, amount, const label[], const description[] = "", const icon[] = "");
-native SAMPP_WorkspaceSetSlotActions(playerid, const documentid[], const paneid[], slot, const actions[]);
 native SAMPP_ExecuteCallback(type, {Float,_}:...);
 
 stock bool:SAMPP_TargetAddAction(playerid, targetid, optionid, const label[], const icon[] = "")
@@ -351,11 +301,6 @@ stock bool:SAMPP_TargetAddAction(playerid, targetid, optionid, const label[], co
 stock bool:SAMPP_TargetBeginDirect(playerid, targetid, target_type, const title[], ttl_ms = 500, flags = 0)
 {
 	return SAMPP_TargetBeginEx(playerid, targetid, target_type, title, ttl_ms, flags | SAMPP_TARGET_FLAG_DIRECT_SELECT) != 0;
-}
-
-stock bool:SAMPP_BuildHasUI(playerid)
-{
-	return IsUsingSAMPP(playerid) && SAMPP_HasFeature(playerid, SAMPP_FEATURE_BUILD);
 }
 
 forward OnPlayerOpenPauseMenu(playerid);
@@ -376,7 +321,6 @@ forward OnPlayerSAMPPTargetMode(playerid, targetid, bool:opened);
 forward OnPlayerSAMPPTargetSelect(playerid, targetid, optionid);
 forward OnPlayerOMPPlusTargetMode(playerid, targetid, bool:opened);
 forward OnPlayerOMPPlusTargetSelect(playerid, targetid, optionid);
-forward OnPlayerSAMPPBuildSelect(playerid, sessionid, partid);
 forward OnPlayerSAMPPBuildPlace(playerid, sessionid, partid, rotation_step, bool:flipped);
 forward OnPlayerSAMPPBuildPlaceEx(playerid, sessionid, partid, rotation_step, bool:flipped, bool:has_aim_hit, Float:aim_x, Float:aim_y, Float:aim_z);
 forward OnPlayerSAMPPBuildPlaceGroundEx(playerid, sessionid, partid, rotation_step, bool:flipped, bool:has_aim_hit, Float:aim_x, Float:aim_y, Float:aim_z, aim_surface_state, Float:footprint_min_ground_z, Float:footprint_max_ground_z);
@@ -384,7 +328,6 @@ forward OnPlayerSAMPPBuildCancel(playerid, sessionid);
 forward OnPlayerSAMPPBuildPreview(playerid, sessionid, partid, rotation_step, bool:flipped);
 forward OnPlayerSAMPPBuildPreviewEx(playerid, sessionid, partid, rotation_step, bool:flipped, bool:has_aim_hit, Float:aim_x, Float:aim_y, Float:aim_z);
 forward OnPlayerSAMPPBuildPreviewGroundEx(playerid, sessionid, partid, rotation_step, bool:flipped, bool:has_aim_hit, Float:aim_x, Float:aim_y, Float:aim_z, aim_surface_state, Float:footprint_min_ground_z, Float:footprint_max_ground_z);
-forward OnPlayerOMPPlusBuildSelect(playerid, sessionid, partid);
 forward OnPlayerOMPPlusBuildPlace(playerid, sessionid, partid, rotation_step, bool:flipped);
 forward OnPlayerOMPPlusBuildPlaceEx(playerid, sessionid, partid, rotation_step, bool:flipped, bool:has_aim_hit, Float:aim_x, Float:aim_y, Float:aim_z);
 forward OnPlayerOMPPlusBuildPlaceGroundEx(playerid, sessionid, partid, rotation_step, bool:flipped, bool:has_aim_hit, Float:aim_x, Float:aim_y, Float:aim_z, aim_surface_state, Float:footprint_min_ground_z, Float:footprint_max_ground_z);
@@ -392,22 +335,6 @@ forward OnPlayerOMPPlusBuildCancel(playerid, sessionid);
 forward OnPlayerOMPPlusBuildPreview(playerid, sessionid, partid, rotation_step, bool:flipped);
 forward OnPlayerOMPPlusBuildPreviewEx(playerid, sessionid, partid, rotation_step, bool:flipped, bool:has_aim_hit, Float:aim_x, Float:aim_y, Float:aim_z);
 forward OnPlayerOMPPlusBuildPreviewGroundEx(playerid, sessionid, partid, rotation_step, bool:flipped, bool:has_aim_hit, Float:aim_x, Float:aim_y, Float:aim_z, aim_surface_state, Float:footprint_min_ground_z, Float:footprint_max_ground_z);
-forward OnPlayerSAMPPUIEvent(playerid, documentid[], event_type, slot, element[], payload[]);
-forward OnPlayerOMPPlusUIEvent(playerid, documentid[], event_type, slot, element[], payload[]);
-forward OnPlayerSAMPPInventoryClick(playerid, documentid[], slot, event_type, payload[]);
-forward OnPlayerOMPPlusInventoryClick(playerid, documentid[], slot, event_type, payload[]);
-forward OnPlayerSAMPPInventoryDrop(playerid, documentid[], from_slot, to_slot, payload[]);
-forward OnPlayerOMPPlusInventoryDrop(playerid, documentid[], from_slot, to_slot, payload[]);
-forward OnPlayerSAMPPInventoryAction(playerid, documentid[], slot, action[], payload[]);
-forward OnPlayerOMPPlusInventoryAction(playerid, documentid[], slot, action[], payload[]);
-forward OnPlayerSAMPPInventorySplit(playerid, documentid[], slot, amount, payload[]);
-forward OnPlayerOMPPlusInventorySplit(playerid, documentid[], slot, amount, payload[]);
-forward OnPlayerSAMPPWorkspaceDrop(playerid, documentid[], from_pane[], from_slot, to_pane[], to_slot, amount, payload[]);
-forward OnPlayerOMPPlusWorkspaceDrop(playerid, documentid[], from_pane[], from_slot, to_pane[], to_slot, amount, payload[]);
-forward OnPlayerSAMPPWorkspaceAction(playerid, documentid[], paneid[], slot, action[], payload[]);
-forward OnPlayerOMPPlusWorkspaceAction(playerid, documentid[], paneid[], slot, action[], payload[]);
-forward OnPlayerSAMPPWorkspaceSplit(playerid, documentid[], paneid[], slot, amount, payload[]);
-forward OnPlayerOMPPlusWorkspaceSplit(playerid, documentid[], paneid[], slot, amount, payload[]);
 
 public OnPlayerConnect(playerid)
 {

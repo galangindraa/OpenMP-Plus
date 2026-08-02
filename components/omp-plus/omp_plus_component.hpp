@@ -111,6 +111,7 @@ public:
 	bool onReceive(IPlayer& player, NetworkBitStream& stream) override;
 
 	bool isUsingOMPPlus(int playerid) const;
+	bool setVehicleWheelDetached(int vehicleid, uint8_t wheelid, bool detached);
 	bool sendLegacyRPC(int playerid, uint16_t rpc, NetworkBitStream* payload = nullptr);
 	void broadcastLegacyRPC(uint16_t rpc, NetworkBitStream* payload = nullptr);
 

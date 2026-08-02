@@ -123,6 +123,17 @@ cell AMX_NATIVE_CALL ToggleThermalVision(AMX* pAmx, cell* pParams)
 	return Network::PlayerSendRPC(eRPC::TOGGLE_THERMALVISION, pParams[1], &bitStream);
 }
 
+cell AMX_NATIVE_CALL SetVehicleWheelDetachedProc(AMX* pAmx, cell* pParams)
+{
+	RakNet::BitStream bitStream;
+	bitStream.WriteCasted<unsigned short, cell>(pParams[1]); // vehicleid
+	bitStream.WriteCasted<unsigned char, cell>(pParams[2]); // wheelid (0-3)
+	bitStream.Write(!!pParams[3]); // detached
+
+	Network::BroadcastRPC(eRPC::SET_VEHICLE_WHEEL_DETACHED, &bitStream);
+	return 1;
+}
+
 cell AMX_NATIVE_CALL IsPlayerInPauseMenuProc(AMX* pAmx, cell* pParams)
 {
 	CPlayer* pPlayer = GetSAMPPPlayer(pParams[1], "IsPlayerInPauseMenu");
@@ -622,6 +633,7 @@ AMX_NATIVE_INFO PluginNatives[] =
 	{ "ToggleUnderwaterEffect", ToggleUnderwaterEffect },
 	{ "ToggleNightVision", ToggleNightVision },
 	{ "ToggleThermalVision", ToggleThermalVision },
+	{ "SetVehicleWheelDetached", SetVehicleWheelDetachedProc },
 	{ "SAMPP_BindKey", BindKeyProc },
 	{ "SAMPP_UnbindKey", UnbindKeyProc },
 	{ "SAMPP_ClearKeyBinds", ClearKeyBindsProc },

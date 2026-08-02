@@ -51,6 +51,7 @@ void CRPCCallback::Initialize()
 	CRPC::Add(eRPC::TOGGLE_UNDERWATER_EFFECT, ToggleUnderwaterEffect);
 	CRPC::Add(eRPC::TOGGLE_NIGHTVISION, ToggleNightVision);
 	CRPC::Add(eRPC::TOGGLE_THERMALVISION, ToggleThermalVision);
+	CRPC::Add(eRPC::SET_VEHICLE_WHEEL_DETACHED, SetVehicleWheelDetached);
 	CRPC::Add(eRPC::SET_KEY_BIND, SetKeyBind);
 	CRPC::Add(eRPC::UNBIND_KEY, UnbindKey);
 	CRPC::Add(eRPC::CLEAR_KEY_BINDS, ClearKeyBinds);
@@ -415,5 +416,17 @@ RPC_CALLBACK CRPCCallback::ToggleThermalVision(RPC_ARGS)
 	if (bsData.Read(toggle))
 	{
 		CGame::ToggleThermalVision(toggle);
+	}
+}
+
+RPC_CALLBACK CRPCCallback::SetVehicleWheelDetached(RPC_ARGS)
+{
+	unsigned short vehicleId;
+	unsigned char wheelId;
+	bool detached;
+
+	if (bsData.Read(vehicleId) && bsData.Read(wheelId) && bsData.Read(detached))
+	{
+		CGame::SetVehicleWheelDetached(vehicleId, wheelId, detached);
 	}
 }

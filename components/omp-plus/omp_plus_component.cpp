@@ -573,6 +573,19 @@ bool OMPPlusComponent::clearTargetContext(int playerid)
 	return sendLegacyRPC(playerid, OMPPlusProtocol::TARGET_CLEAR_CONTEXT) != 0;
 }
 
+bool OMPPlusComponent::setVehicleWheelDetached(int vehicleid, uint8_t wheelid, bool detached)
+{
+	if (vehicleid <= 0 || wheelid > 3)
+		return false;
+
+	NetworkBitStream stream;
+	stream.Write(static_cast<uint16_t>(vehicleid));
+	stream.Write(wheelid);
+	stream.Write(detached);
+	broadcastLegacyRPC(OMPPlusProtocol::SET_VEHICLE_WHEEL_DETACHED, &stream);
+	return true;
+}
+
 bool OMPPlusComponent::openBuild(int playerid, uint32_t sessionid, const std::string& title, float maxDistance)
 {
 	if (playerid < 0 || playerid >= PLAYER_POOL_SIZE || !isUsingOMPPlus(playerid) || sessionid == 0)

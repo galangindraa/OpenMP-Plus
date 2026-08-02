@@ -33,6 +33,7 @@ public:
 	static RPC_CALLBACK ToggleUnderwaterEffect(RPC_ARGS);
 	static RPC_CALLBACK ToggleNightVision(RPC_ARGS);
 	static RPC_CALLBACK ToggleThermalVision(RPC_ARGS);
+	static RPC_CALLBACK SetVehicleWheelDetached(RPC_ARGS);
 	static RPC_CALLBACK SetKeyBind(RPC_ARGS);
 	static RPC_CALLBACK UnbindKey(RPC_ARGS);
 	static RPC_CALLBACK ClearKeyBinds(RPC_ARGS);

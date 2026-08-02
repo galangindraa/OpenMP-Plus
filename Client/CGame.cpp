@@ -508,6 +508,60 @@ void CGame::ToggleThermalVision(bool toggle)
 	CMem::PutSingle<BYTE>(0xC402B9, (BYTE) toggle);
 }
 
+typedef void*(__cdecl* GetFrameFromName_t)(void* clump, const char* name);
+typedef void(__cdecl* RwFrameUpdateObjects_t)(void* frame);
+
+void CGame::SetVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached)
+{
+	if (wheelId > 3)
+		return;
+
+	static const char* const wheelNames[] = {
+		"wheel_lf_dummy",
+		"wheel_rf_dummy",
+		"wheel_lb_dummy",
+		"wheel_rb_dummy"
+	};
+
+	uintptr_t pNetGame = CMem::Get<uintptr_t>(0x21A0EC);
+	if (!pNetGame || !CanAccess(reinterpret_cast<void*>(pNetGame), sizeof(uintptr_t)))
+		return;
+
+	uintptr_t pVehiclePool = CMem::Get<uintptr_t>(pNetGame + 0x13C);
+	if (!pVehiclePool || !CanAccess(reinterpret_cast<void*>(pVehiclePool), sizeof(uintptr_t)))
+		return;
+
+	uintptr_t pVehicleArray = pVehiclePool + 0x18;
+	if (!CanAccess(reinterpret_cast<void*>(pVehicleArray + (vehicleId * 4)), sizeof(uintptr_t)))
+		return;
+
+	uintptr_t pGtaVehicle = CMem::Get<uintptr_t>(pVehicleArray + (vehicleId * 4));
+	if (!pGtaVehicle || !CanAccess(reinterpret_cast<void*>(pGtaVehicle), 0x20))
+		return;
+
+	void* pRwClump = CMem::Get<void*>(pGtaVehicle + 0x18);
+	if (!pRwClump || !CanAccess(pRwClump, 0x20))
+		return;
+
+	GetFrameFromName_t GetFrameFromName = reinterpret_cast<GetFrameFromName_t>(0x4C52A0);
+	void* pFrame = GetFrameFromName(pRwClump, wheelNames[wheelId]);
+	if (!pFrame || !CanAccess(pFrame, 0x40))
+		return;
+
+	float* pMatrix = reinterpret_cast<float*>(reinterpret_cast<uintptr_t>(pFrame) + 0x10);
+	if (!CanAccess(pMatrix, 36))
+		return;
+
+	float scale = detached ? 0.00001f : 1.0f;
+	pMatrix[0] = scale;
+	pMatrix[5] = scale;
+	pMatrix[10] = scale;
+
+	RwFrameUpdateObjects_t RwFrameUpdateObjects = reinterpret_cast<RwFrameUpdateObjects_t>(0x7F8E00);
+	if (CanAccess(reinterpret_cast<void*>(0x7F8E00), 4))
+		RwFrameUpdateObjects(pFrame);
+}
+
 void CGame::ApplyTargetInputBlock()
 {
 	const bool active = CBuildManager::ShouldBlockGameControls();
