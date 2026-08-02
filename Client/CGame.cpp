@@ -618,8 +618,8 @@ namespace
 
 		if (detached && wheelNode)
 		{
-			SpawnFlyingComponent_t SpawnFlyingComponent = reinterpret_cast<SpawnFlyingComponent_t>(0x530300);
-			if (CanAccess(reinterpret_cast<void*>(0x530300), 4))
+			SpawnFlyingComponent_t SpawnFlyingComponent = reinterpret_cast<SpawnFlyingComponent_t>(0x6A34A0);
+			if (SampClient::IsExecutableAddress(0x6A34A0))
 			{
 				__try
 				{
@@ -630,11 +630,6 @@ namespace
 					CLog::Write("Wheel spawn component failed: vehicle=%u wheel=%u node=%d", vehicleId, wheelId, wheelNodeIndexes[wheelId]);
 				}
 			}
-
-			// The original plugin hides atomics after spawning the component.
-			// Keep that disabled here because raw RenderWare traversal is the
-			// riskiest part across SA-MP client builds; the frame fallback below
-			// still hides the wheel visually.
 		}
 
 		void* pRwClump = NULL;
@@ -647,7 +642,10 @@ namespace
 			return;
 		}
 
-		GetFrameFromName_t GetFrameFromName = reinterpret_cast<GetFrameFromName_t>(0x4C5400);
+		GetFrameFromName_t GetFrameFromName = reinterpret_cast<GetFrameFromName_t>(0x4C52A0);
+		if (!SampClient::IsExecutableAddress(0x4C52A0))
+			return;
+
 		void* pFrame = NULL;
 		__try
 		{
@@ -689,9 +687,9 @@ namespace
 			pMatrix[10] = 1.0f;
 		}
 
-		RwFrameUpdateObjects_t RwFrameUpdateObjects = reinterpret_cast<RwFrameUpdateObjects_t>(0x644D00);
-		if (CanAccess(reinterpret_cast<void*>(0x644D00), 4))
+		if (SampClient::IsExecutableAddress(0x7F8E00))
 		{
+			RwFrameUpdateObjects_t RwFrameUpdateObjects = reinterpret_cast<RwFrameUpdateObjects_t>(0x7F8E00);
 			__try
 			{
 				RwFrameUpdateObjects(pFrame);
