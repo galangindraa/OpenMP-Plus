@@ -769,61 +769,6 @@ namespace
 		return (modelFlags & 0x20000000u) != 0;
 	}
 
-	// Cars: all four wheel bits. Bikes: any front (LF/RF) + any rear (LB/RB).
-	bool IsFullyWheelDetached(unsigned char wheelMask, bool bikeLike)
-	{
-		if (bikeLike)
-			return (wheelMask & 0x03u) != 0 && (wheelMask & 0x0Cu) != 0;
-		return (wheelMask & 0x0Fu) == 0x0Fu;
-	}
-
-	bool IsValidVehicleEntity(uintptr_t pGtaVehicle)
-	{
-		if (!pGtaVehicle || !CanAccess(reinterpret_cast<void*>(pGtaVehicle), 0x5A0))
-			return false;
-
-		// CEntity::m_nModelIndex — vehicles start at 400 (custom models may be >611).
-		short* model = reinterpret_cast<short*>(pGtaVehicle + 0x22);
-		if (!CanAccess(model, sizeof(*model)))
-			return false;
-		if (*model < 400)
-			return false;
-
-		const unsigned int vehicleType = ReadVehicleType(pGtaVehicle);
-		if (vehicleType > VEHICLE_TRAILER)
-			return false;
-
-		// Must have handling data like a real CVehicle.
-		DWORD handling = 0;
-		if (!SampClient::ReadPointer(static_cast<DWORD>(pGtaVehicle + 0x384), handling) || !SampClient::CanRead(handling, 0xE0))
-			return false;
-
-		return true;
-	}
-
-	// Soft stop only — do not poke vehicle flags / turn speed / full brake.
-	// Those writes every render frame can freeze pad/mouse processing.
-	void ImmobilizeVehicleNoWheels(uintptr_t pGtaVehicle)
-	{
-		if (!IsValidVehicleEntity(pGtaVehicle))
-			return;
-
-		float* gasPedal = reinterpret_cast<float*>(pGtaVehicle + 0x49C);
-		if (CanAccess(gasPedal, sizeof(float)))
-			*gasPedal = 0.0f;
-
-		float* moveSpeed = reinterpret_cast<float*>(pGtaVehicle + 0x44);
-		if (CanAccess(moveSpeed, sizeof(float) * 3))
-		{
-			moveSpeed[0] *= 0.5f;
-			moveSpeed[1] *= 0.5f;
-			moveSpeed[2] *= 0.5f;
-			if (moveSpeed[0] > -0.01f && moveSpeed[0] < 0.01f) moveSpeed[0] = 0.0f;
-			if (moveSpeed[1] > -0.01f && moveSpeed[1] < 0.01f) moveSpeed[1] = 0.0f;
-			if (moveSpeed[2] > -0.01f && moveSpeed[2] < 0.01f) moveSpeed[2] = 0.0f;
-		}
-	}
-
 	void ApplyVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached)
 	{
 		if (wheelId > 3)
@@ -1033,19 +978,6 @@ namespace
 				if (it->second & (1u << wheelId))
 					ApplyVehicleWheelDetached(it->first, wheelId, true);
 			}
-
-			// Immobilize once per vehicle after wheel visuals, not per-wheel.
-			DWORD gtaVehicle = 0;
-			if (!SampClient::ResolveVehicle(it->first, gtaVehicle))
-				continue;
-
-			uintptr_t pGtaVehicle = static_cast<uintptr_t>(gtaVehicle);
-			if (!IsValidVehicleEntity(pGtaVehicle))
-				continue;
-
-			const unsigned int vehicleType = ReadVehicleType(pGtaVehicle);
-			if (IsFullyWheelDetached(it->second, IsBikeLike(vehicleType)))
-				ImmobilizeVehicleNoWheels(pGtaVehicle);
 		}
 	}
 }
