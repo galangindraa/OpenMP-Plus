@@ -640,75 +640,70 @@ namespace
 			HideAllNodesRecursive(next, depth + 1);
 	}
 
-	void ApplyVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached)
+	enum eVehicleTypeLite
 	{
-		if (wheelId > 3)
-			return;
+		VEHICLE_AUTOMOBILE = 0,
+		VEHICLE_MTRUCK = 1,
+		VEHICLE_QUAD = 2,
+		VEHICLE_HELI = 3,
+		VEHICLE_PLANE = 4,
+		VEHICLE_BOAT = 5,
+		VEHICLE_TRAIN = 6,
+		VEHICLE_FHELI = 7,
+		VEHICLE_FPLANE = 8,
+		VEHICLE_BIKE = 9,
+		VEHICLE_BMX = 10,
+		VEHICLE_TRAILER = 11
+	};
 
-		static const char* const wheelNames[] = {
-			"wheel_lf_dummy",
-			"wheel_rf_dummy",
-			"wheel_lb_dummy",
-			"wheel_rb_dummy"
-		};
-		// Native order: front-left, front-right, rear-left, rear-right.
-		// GTA damage-manager wheel bytes: RR(+5), RF(+6), LR(+7), LF(+8).
+	// CVehicle::m_nVehicleType
+	const uintptr_t VehicleTypeOffset = 0x590;
+	// CAutomobile::m_damageManager / m_aCarNodes
+	const uintptr_t AutomobileDamageManagerOffset = 0x5A0;
+	const uintptr_t AutomobileCarNodesOffset = 0x648;
+	// CBike::m_aBikeNodes (plugin-sdk / SA)
+	const uintptr_t BikeNodesOffset = 0x5A0;
+
+	unsigned int ReadVehicleType(uintptr_t pGtaVehicle)
+	{
+		unsigned int* typePtr = reinterpret_cast<unsigned int*>(pGtaVehicle + VehicleTypeOffset);
+		if (!CanAccess(typePtr, sizeof(*typePtr)))
+			return 0xFFFFFFFFu;
+		return *typePtr;
+	}
+
+	bool IsAutomobileLike(unsigned int vehicleType)
+	{
+		return vehicleType == VEHICLE_AUTOMOBILE || vehicleType == VEHICLE_MTRUCK
+			|| vehicleType == VEHICLE_QUAD || vehicleType == VEHICLE_TRAILER;
+	}
+
+	bool IsBikeLike(unsigned int vehicleType)
+	{
+		return vehicleType == VEHICLE_BIKE || vehicleType == VEHICLE_BMX;
+	}
+
+	bool AutomobileHasOtherAttachedWheel(uintptr_t pGtaVehicle, unsigned char wheelId)
+	{
+		// Damage-manager wheel bytes relative to CDamageManager base:
+		// RR +5, RF +6, LR +7, LF +8. Native wheel order: LF, RF, LB, RB.
 		static const unsigned char damageWheelOffsets[] = { 0x08, 0x06, 0x07, 0x05 };
-		static const int wheelNodeIndexes[] = { 5, 2, 7, 4 };
-
-		DWORD gtaVehicle = 0;
-		if (!SampClient::ResolveVehicle(vehicleId, gtaVehicle))
+		for (unsigned char other = 0; other < 4; ++other)
 		{
-			LogWheelApplyFailure(vehicleId, "could not resolve GTA vehicle");
-			return;
+			if (other == wheelId)
+				continue;
+			unsigned char* status = reinterpret_cast<unsigned char*>(pGtaVehicle + AutomobileDamageManagerOffset + damageWheelOffsets[other]);
+			if (!CanAccess(status, sizeof(*status)))
+				continue;
+			if (*status != 2)
+				return true;
 		}
+		return false;
+	}
 
-		uintptr_t pGtaVehicle = static_cast<uintptr_t>(gtaVehicle);
-		if (!pGtaVehicle || !CanAccess(reinterpret_cast<void*>(pGtaVehicle), 0x650))
-		{
-			LogWheelApplyFailure(vehicleId, "invalid GTA vehicle");
-			return;
-		}
-
-		unsigned char* wheelStatus = reinterpret_cast<unsigned char*>(pGtaVehicle + 0x5A0 + damageWheelOffsets[wheelId]);
-		if (CanAccess(wheelStatus, sizeof(*wheelStatus)))
-			*wheelStatus = detached ? 2 : 0;
-
-		void* wheelNode = NULL;
-		void* wheelNodeAddress = reinterpret_cast<void*>(pGtaVehicle + 0x648 + wheelNodeIndexes[wheelId] * sizeof(void*));
-		if (CanAccess(wheelNodeAddress, sizeof(void*)))
-			wheelNode = CMem::Get<void*>(wheelNodeAddress);
-
-		const unsigned char wheelBit = static_cast<unsigned char>(1u << wheelId);
-		unsigned char& spawnedMask = g_spawnedFlyingWheels[vehicleId];
-
-		if (detached && wheelNode && !(spawnedMask & wheelBit))
-		{
-			if (!SafeSpawnFlyingComponent(reinterpret_cast<void*>(pGtaVehicle), wheelNodeIndexes[wheelId]))
-				CLog::Write("Wheel spawn component failed: vehicle=%u wheel=%u node=%d", vehicleId, wheelId, wheelNodeIndexes[wheelId]);
-
-			// Always mark attempted so reapply never calls SpawnFlyingComponent again.
-			spawnedMask = static_cast<unsigned char>(spawnedMask | wheelBit);
-		}
-
-		if (!detached)
-		{
-			spawnedMask = static_cast<unsigned char>(spawnedMask & ~wheelBit);
-			if (!spawnedMask)
-				g_spawnedFlyingWheels.erase(vehicleId);
-		}
-
-		if (detached && wheelNode && CanAccess(wheelNode, 0xA0))
-			HideAllAtomics(wheelNode);
-
-		void* pRwClump = NULL;
-		if (CanAccess(reinterpret_cast<void*>(pGtaVehicle + 0x18), sizeof(void*)))
-			pRwClump = CMem::Get<void*>(pGtaVehicle + 0x18);
-
-		if (!pRwClump || !CanAccess(pRwClump, 0x20))
-			return;
-
-		void* pFrame = SafeGetFrameFromName(pRwClump, wheelNames[wheelId]);
+	void HideFrameByName(void* clump, const char* name, bool detached)
+	{
+		void* pFrame = SafeGetFrameFromName(clump, name);
 		if (!pFrame || !CanAccess(pFrame, 0x40))
 			return;
 
@@ -731,6 +726,135 @@ namespace
 		}
 
 		SafeRwFrameUpdateObjects(pFrame);
+	}
+
+	void ApplyVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached)
+	{
+		if (wheelId > 3)
+			return;
+
+		static const char* const carWheelNames[] = {
+			"wheel_lf_dummy",
+			"wheel_rf_dummy",
+			"wheel_lb_dummy",
+			"wheel_rb_dummy"
+		};
+		// Native order: front-left, front-right, rear-left, rear-right.
+		static const unsigned char carDamageWheelOffsets[] = { 0x08, 0x06, 0x07, 0x05 };
+		static const int carWheelNodeIndexes[] = { 5, 2, 7, 4 }; // LF, RF, LB, RB
+		// Bike nodes: front=4, rear=5. Map LF/RF -> front, LB/RB -> rear.
+		static const int bikeWheelNodeIndexes[] = { 4, 4, 5, 5 };
+
+		DWORD gtaVehicle = 0;
+		if (!SampClient::ResolveVehicle(vehicleId, gtaVehicle))
+		{
+			LogWheelApplyFailure(vehicleId, "could not resolve GTA vehicle");
+			return;
+		}
+
+		uintptr_t pGtaVehicle = static_cast<uintptr_t>(gtaVehicle);
+		if (!pGtaVehicle || !CanAccess(reinterpret_cast<void*>(pGtaVehicle), 0x5A0))
+		{
+			LogWheelApplyFailure(vehicleId, "invalid GTA vehicle");
+			return;
+		}
+
+		const unsigned int vehicleType = ReadVehicleType(pGtaVehicle);
+		const bool automobileLike = IsAutomobileLike(vehicleType);
+		const bool bikeLike = IsBikeLike(vehicleType);
+		if (!automobileLike && !bikeLike)
+			return;
+
+		void* pRwClump = NULL;
+		if (CanAccess(reinterpret_cast<void*>(pGtaVehicle + 0x18), sizeof(void*)))
+			pRwClump = CMem::Get<void*>(pGtaVehicle + 0x18);
+
+		const unsigned char wheelBit = static_cast<unsigned char>(1u << wheelId);
+		unsigned char& spawnedMask = g_spawnedFlyingWheels[vehicleId];
+
+		if (automobileLike)
+		{
+			if (!CanAccess(reinterpret_cast<void*>(pGtaVehicle), 0x650))
+			{
+				LogWheelApplyFailure(vehicleId, "automobile not ready");
+				return;
+			}
+
+			unsigned char* wheelStatus = reinterpret_cast<unsigned char*>(pGtaVehicle + AutomobileDamageManagerOffset + carDamageWheelOffsets[wheelId]);
+			if (CanAccess(wheelStatus, sizeof(*wheelStatus)))
+				*wheelStatus = detached ? 2 : 0;
+
+			void* wheelNode = NULL;
+			void* wheelNodeAddress = reinterpret_cast<void*>(pGtaVehicle + AutomobileCarNodesOffset + carWheelNodeIndexes[wheelId] * sizeof(void*));
+			if (CanAccess(wheelNodeAddress, sizeof(void*)))
+				wheelNode = CMem::Get<void*>(wheelNodeAddress);
+
+			// CAutomobile::SpawnFlyingComponent only. Never call it on bikes, and
+			// never remove the last remaining wheel (that path crashes in SA).
+			if (detached && wheelNode && !(spawnedMask & wheelBit)
+				&& AutomobileHasOtherAttachedWheel(pGtaVehicle, wheelId))
+			{
+				SafeSpawnFlyingComponent(reinterpret_cast<void*>(pGtaVehicle), carWheelNodeIndexes[wheelId]);
+				spawnedMask = static_cast<unsigned char>(spawnedMask | wheelBit);
+			}
+			else if (detached && !(spawnedMask & wheelBit))
+			{
+				// Mark attempted even when we skip spawn, so reapply stays visual-only.
+				spawnedMask = static_cast<unsigned char>(spawnedMask | wheelBit);
+			}
+
+			if (detached && wheelNode && CanAccess(wheelNode, 0xA0))
+				HideAllAtomics(wheelNode);
+
+			if (pRwClump && CanAccess(pRwClump, 0x20))
+				HideFrameByName(pRwClump, carWheelNames[wheelId], detached);
+		}
+		else if (bikeLike)
+		{
+			// Bikes have no CAutomobile damage manager / SpawnFlyingComponent.
+			// Use CBike wheel status + hide real bike wheel frames.
+			const bool front = (wheelId == 0 || wheelId == 1);
+			unsigned char* bikeWheelStatus = reinterpret_cast<unsigned char*>(pGtaVehicle + 0x65C + (front ? 0 : 1));
+			if (CanAccess(bikeWheelStatus, sizeof(*bikeWheelStatus)))
+				*bikeWheelStatus = detached ? 2 : 0;
+
+			void* wheelNode = NULL;
+			void* wheelNodeAddress = reinterpret_cast<void*>(pGtaVehicle + BikeNodesOffset + bikeWheelNodeIndexes[wheelId] * sizeof(void*));
+			if (CanAccess(wheelNodeAddress, sizeof(void*)))
+				wheelNode = CMem::Get<void*>(wheelNodeAddress);
+
+			if (detached && wheelNode && CanAccess(wheelNode, 0xA0))
+				HideAllAtomics(wheelNode);
+
+			if (pRwClump && CanAccess(pRwClump, 0x20))
+			{
+				if (front)
+				{
+					HideFrameByName(pRwClump, "wheel_front", detached);
+					HideFrameByName(pRwClump, "wheel_f_dummy", detached);
+					HideFrameByName(pRwClump, "wheel_lf_dummy", detached);
+					HideFrameByName(pRwClump, "wheel_rf_dummy", detached);
+					HideFrameByName(pRwClump, "forks_front", detached);
+				}
+				else
+				{
+					HideFrameByName(pRwClump, "wheel_rear", detached);
+					HideFrameByName(pRwClump, "wheel_r_dummy", detached);
+					HideFrameByName(pRwClump, "wheel_lb_dummy", detached);
+					HideFrameByName(pRwClump, "wheel_rb_dummy", detached);
+					HideFrameByName(pRwClump, "forks_rear", detached);
+				}
+			}
+
+			spawnedMask = static_cast<unsigned char>(spawnedMask | wheelBit);
+		}
+
+		if (!detached)
+		{
+			spawnedMask = static_cast<unsigned char>(spawnedMask & ~wheelBit);
+			if (!spawnedMask)
+				g_spawnedFlyingWheels.erase(vehicleId);
+		}
 	}
 }
 
