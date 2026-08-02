@@ -599,7 +599,7 @@ namespace
 		}
 
 		uintptr_t pGtaVehicle = static_cast<uintptr_t>(gtaVehicle);
-		if (!pGtaVehicle || !CanAccess(reinterpret_cast<void*>(pGtaVehicle), 0x650))
+		if (!pGtaVehicle || !CanAccess(reinterpret_cast<void*>(pGtaVehicle), 0x20))
 		{
 			CLog::Write("Wheel apply failed: vehicle=%u invalid GTA vehicle=%p", vehicleId, reinterpret_cast<void*>(pGtaVehicle));
 			return;
@@ -682,6 +682,11 @@ namespace
 		if (CanAccess(reinterpret_cast<void*>(0x644D00), 4))
 			RwFrameUpdateObjects(pFrame);
 	}
+}
+
+void CGame::ProcessWheelDetachRetries()
+{
+	ReapplyDetachedVehicleWheels();
 }
 
 void CGame::SetVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached)

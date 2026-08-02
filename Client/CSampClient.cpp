@@ -17,6 +17,7 @@ namespace
 
 	const DWORD VehicleListedOffset = 0x3074;
 	const unsigned short MaxSampVehicles = 2000;
+	const DWORD VehicleGtaArrayOffset = VehicleListedOffset + (MaxSampVehicles * sizeof(DWORD));
 	DWORD g_lastVehicleResolveLog[MaxSampVehicles] = {};
 
 	void LogVehicleResolveFailure(unsigned short vehicleId, const char* stage, DWORD base, DWORD entryPoint, DWORD sampInfo, DWORD pools, DWORD vehiclePool, DWORD sampVehicle, DWORD gtaVehicle)
@@ -287,6 +288,14 @@ namespace SampClient
 				if (!listed)
 					continue;
 
+				DWORD directGtaVehicle = 0;
+				if (ReadPointer(vehiclePool + VehicleGtaArrayOffset + vehicleId * sizeof(DWORD), directGtaVehicle)
+					&& CanRead(directGtaVehicle, 0x20))
+				{
+					gtaVehicle = directGtaVehicle;
+					return true;
+				}
+
 				if (!ReadPointer(vehicleSlot + layout->vehicleArrayOffset, sampVehicle))
 					continue;
 				lastSampVehicle = sampVehicle;
@@ -295,10 +304,11 @@ namespace SampClient
 					continue;
 				lastGtaVehicle = gtaVehicle;
 
-				// Do not require the RenderWare clump here. The server can send
-				// the detach state while the visual model is still streaming; the
-				// render hook retries and applies it once the clump appears.
-				if (CanRead(gtaVehicle, 0x650))
+				// Do not require the RenderWare clump or the whole CAutomobile
+				// block here. The server can send the detach state while the
+				// visual model is still streaming; the apply path validates each
+				// field it touches and retries later if needed.
+				if (CanRead(gtaVehicle, 0x20))
 					return true;
 			}
 		}

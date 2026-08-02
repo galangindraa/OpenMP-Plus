@@ -261,6 +261,10 @@ namespace Network
 				return;
 			}
 
+#ifndef SAMPP_SAFE_CLIENT
+			CGame::ProcessWheelDetachRetries();
+#endif
+
 			if (!bConnected && now >= dwNextHelloAttempt)
 			{
 				CGameRakClient::SendHello();
@@ -271,6 +275,10 @@ namespace Network
 
 		if (!IsInitialized())
 			return;
+
+#ifndef SAMPP_SAFE_CLIENT
+		CGame::ProcessWheelDetachRetries();
+#endif
 
 		RakNet::Packet* pPacket;
 

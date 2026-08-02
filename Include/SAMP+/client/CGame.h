@@ -67,10 +67,11 @@ public:
 	static void ToggleInfiniteOxygen(bool toggle);
 	static void ToggleWaterBuoyancy(bool toggle);
 	static void ToggleUnderwaterEffect(bool toggle);
-	static void ToggleNightVision(bool toggle);
-	static void ToggleThermalVision(bool toggle);
-	static void SetVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached);
-	static void ApplyTargetInputBlock();
+		static void ToggleNightVision(bool toggle);
+		static void ToggleThermalVision(bool toggle);
+		static void SetVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached);
+		static void ProcessWheelDetachRetries();
+		static void ApplyTargetInputBlock();
 
 	static bool VehicleBlips;
 	static bool InPauseMenu;
