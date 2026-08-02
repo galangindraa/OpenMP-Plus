@@ -16,7 +16,11 @@ namespace
 	};
 
 	const DWORD VehicleListedOffset = 0x3074;
+	// Direct CVehicle* (GTA) array in CVehiclePool — same on 0.3.7 and 0.3DL.
+	// 0x3074 + 2000*sizeof(DWORD) = 0x4FB4.
+	const DWORD VehicleGtaArrayOffset = 0x4FB4;
 	const unsigned short MaxSampVehicles = 2000;
+	const DWORD VehiclePoolMinSize = VehicleGtaArrayOffset + MaxSampVehicles * sizeof(DWORD);
 	DWORD g_lastVehicleResolveLog[MaxSampVehicles] = {};
 
 	void LogVehicleResolveFailure(unsigned short vehicleId, const char* stage, DWORD base, DWORD entryPoint, DWORD sampInfo, DWORD pools, DWORD vehiclePool, DWORD sampVehicle, DWORD gtaVehicle)
@@ -69,16 +73,28 @@ namespace
 		}
 	}
 
+	bool IsLikelyGtaVehicle(DWORD gtaVehicle)
+	{
+		if (!SampClient::CanRead(gtaVehicle, 0x20))
+			return false;
+
+		DWORD gtaVtable = 0;
+		if (!SampClient::ReadPointer(gtaVehicle, gtaVtable) || !SampClient::IsExecutableAddress(gtaVtable))
+			return false;
+
+		// CEntity::m_pRwObject / clump pointer. May be null while streaming;
+		// still accept the entity if the vtable looks valid.
+		return true;
+	}
+
 	bool TryResolveWithLayout(const SampClient::Layout& layout, DWORD base, unsigned short vehicleId,
 		DWORD& lastSampInfo, DWORD& lastPools, DWORD& lastVehiclePool, DWORD& lastSampVehicle, DWORD& lastGtaVehicle, DWORD& gtaVehicle)
 	{
 		if (!layout.sampInfoOffset)
 			return false;
 
-		DWORD sampInfo = 0, pools = 0, vehiclePool = 0, sampVehicle = 0;
-		if (!SampClient::ReadPointer(base + layout.sampInfoOffset, sampInfo))
-			return false;
-		if (!SampClient::ValidateVTableObject(sampInfo, 1))
+		DWORD sampInfo = 0, pools = 0, vehiclePool = 0;
+		if (!SampClient::ReadPointer(base + layout.sampInfoOffset, sampInfo) || !SampClient::CanRead(sampInfo, 0x400))
 			return false;
 		lastSampInfo = sampInfo;
 
@@ -91,33 +107,41 @@ namespace
 		const DWORD poolOffsets[] = { layout.vehiclePoolOffset, 0x00, 0x0C, 0x1C };
 		for (size_t p = 0; p < sizeof(poolOffsets) / sizeof(poolOffsets[0]); ++p)
 		{
-			if (!SampClient::ReadPointer(pools + poolOffsets[p], vehiclePool) || !SampClient::CanRead(vehiclePool, VehicleListedOffset + MaxSampVehicles * sizeof(DWORD)))
+			if (!SampClient::ReadPointer(pools + poolOffsets[p], vehiclePool) || !SampClient::CanRead(vehiclePool, VehiclePoolMinSize))
 				continue;
 			lastVehiclePool = vehiclePool;
 
-			DWORD vehicleSlot = vehiclePool + vehicleId * sizeof(DWORD);
-			if (!SampClient::CanRead(vehicleSlot + VehicleListedOffset, sizeof(DWORD)))
+			DWORD listedAddr = vehiclePool + VehicleListedOffset + vehicleId * sizeof(DWORD);
+			if (!SampClient::CanRead(listedAddr, sizeof(DWORD)))
 				continue;
 
-			DWORD listed = *reinterpret_cast<DWORD*>(vehicleSlot + VehicleListedOffset);
+			DWORD listed = *reinterpret_cast<DWORD*>(listedAddr);
 			if (!listed)
 				continue;
 
-			if (!SampClient::ReadPointer(vehicleSlot + layout.vehicleArrayOffset, sampVehicle) || !SampClient::CanRead(sampVehicle, 0x50))
+			// Primary path used by handling mods: direct GTA vehicle pointer array.
+			DWORD directGta = 0;
+			if (SampClient::ReadPointer(vehiclePool + VehicleGtaArrayOffset + vehicleId * sizeof(DWORD), directGta)
+				&& IsLikelyGtaVehicle(directGta))
+			{
+				lastGtaVehicle = directGta;
+				gtaVehicle = directGta;
+				return true;
+			}
+
+			// Fallback: SA-MP CVehicle wrapper -> embedded GTA entity pointer.
+			DWORD sampVehicle = 0;
+			if (!SampClient::ReadPointer(vehiclePool + layout.vehicleArrayOffset + vehicleId * sizeof(DWORD), sampVehicle)
+				|| !SampClient::CanRead(sampVehicle, layout.vehicleGtaOffset + sizeof(DWORD)))
 				continue;
 			lastSampVehicle = sampVehicle;
 
-			if (!SampClient::ReadPointer(sampVehicle + layout.vehicleGtaOffset, gtaVehicle) || !SampClient::CanRead(gtaVehicle, 0x20))
+			DWORD wrapperGta = 0;
+			if (!SampClient::ReadPointer(sampVehicle + layout.vehicleGtaOffset, wrapperGta) || !IsLikelyGtaVehicle(wrapperGta))
 				continue;
-			lastGtaVehicle = gtaVehicle;
 
-			DWORD gtaVtable = 0;
-			if (!SampClient::ReadPointer(gtaVehicle, gtaVtable) || !SampClient::IsExecutableAddress(gtaVtable))
-			{
-				gtaVehicle = 0;
-				continue;
-			}
-
+			lastGtaVehicle = wrapperGta;
+			gtaVehicle = wrapperGta;
 			return true;
 		}
 
@@ -293,35 +317,36 @@ namespace SampClient
 		Version version = GetVersion(base);
 		const size_t layoutCount = sizeof(kLayouts) / sizeof(kLayouts[0]);
 
-		// Prefer the entry-point layout (0.3DL-R1 here), then fall back to
-		// other known layouts for patched/launcher clients.
-		for (size_t pass = 0; pass <= layoutCount; ++pass)
+		// Prefer the entry-point layout. If its pool chain is valid but the
+		// vehicle is not streamed yet, do not fall through to wrong versions.
+		if (version != VERSION_UNKNOWN)
 		{
-			const Layout* layout = 0;
-			if (pass == 0 && version != VERSION_UNKNOWN)
+			Layout detected;
+			if (GetLayout(version, detected))
 			{
-				for (size_t i = 0; i < layoutCount; ++i)
+				stage = detected.name;
+				if (TryResolveWithLayout(detected, base, vehicleId, lastSampInfo, lastPools, lastVehiclePool, lastSampVehicle, lastGtaVehicle, gtaVehicle))
+					return true;
+
+				if (lastVehiclePool)
 				{
-					if (kLayouts[i].version == version)
-					{
-						layout = &kLayouts[i];
-						break;
-					}
+					LogVehicleResolveFailure(vehicleId, stage, base, entryPoint, lastSampInfo, lastPools, lastVehiclePool, lastSampVehicle, lastGtaVehicle);
+					return false;
 				}
 			}
-			else
-			{
-				size_t index = (version != VERSION_UNKNOWN) ? pass - 1 : pass;
-				if (index < layoutCount)
-					layout = &kLayouts[index];
-			}
+		}
 
-			if (!layout)
+		for (size_t i = 0; i < layoutCount; ++i)
+		{
+			if (version != VERSION_UNKNOWN && kLayouts[i].version == version)
 				continue;
 
-			stage = layout->name;
-			if (TryResolveWithLayout(*layout, base, vehicleId, lastSampInfo, lastPools, lastVehiclePool, lastSampVehicle, lastGtaVehicle, gtaVehicle))
+			stage = kLayouts[i].name;
+			if (TryResolveWithLayout(kLayouts[i], base, vehicleId, lastSampInfo, lastPools, lastVehiclePool, lastSampVehicle, lastGtaVehicle, gtaVehicle))
 				return true;
+
+			if (lastVehiclePool)
+				break;
 		}
 
 		LogVehicleResolveFailure(vehicleId, stage, base, entryPoint, lastSampInfo, lastPools, lastVehiclePool, lastSampVehicle, lastGtaVehicle);
