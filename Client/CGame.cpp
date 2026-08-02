@@ -728,6 +728,87 @@ namespace
 		SafeRwFrameUpdateObjects(pFrame);
 	}
 
+	void HideAutomobileCarNode(uintptr_t pGtaVehicle, int nodeIndex)
+	{
+		if (nodeIndex < 0)
+			return;
+
+		void* wheelNodeAddress = reinterpret_cast<void*>(pGtaVehicle + AutomobileCarNodesOffset + nodeIndex * sizeof(void*));
+		if (!CanAccess(wheelNodeAddress, sizeof(void*)))
+			return;
+
+		void* wheelNode = CMem::Get<void*>(wheelNodeAddress);
+		if (wheelNode && CanAccess(wheelNode, 0xA0))
+			HideAllAtomics(wheelNode);
+	}
+
+	void* GetAutomobileCarNode(uintptr_t pGtaVehicle, int nodeIndex)
+	{
+		if (nodeIndex < 0)
+			return NULL;
+
+		void* wheelNodeAddress = reinterpret_cast<void*>(pGtaVehicle + AutomobileCarNodesOffset + nodeIndex * sizeof(void*));
+		if (!CanAccess(wheelNodeAddress, sizeof(void*)))
+			return NULL;
+
+		void* wheelNode = CMem::Get<void*>(wheelNodeAddress);
+		return (wheelNode && CanAccess(wheelNode, 0xA0)) ? wheelNode : NULL;
+	}
+
+	bool VehicleHasDoubleRearWheels(uintptr_t pGtaVehicle)
+	{
+		DWORD handling = 0;
+		if (!SampClient::ReadPointer(static_cast<DWORD>(pGtaVehicle + 0x384), handling) || !SampClient::CanRead(handling, 0xE0))
+			return false;
+
+		if (!SampClient::CanRead(handling + 0xCC, sizeof(DWORD)))
+			return false;
+
+		const DWORD modelFlags = *reinterpret_cast<DWORD*>(handling + 0xCC);
+		// tHandlingData::m_bDoubleRwheels
+		return (modelFlags & 0x20000000u) != 0;
+	}
+
+	// Cars: all four wheel bits. Bikes: any front (LF/RF) + any rear (LB/RB).
+	bool IsFullyWheelDetached(unsigned char wheelMask, bool bikeLike)
+	{
+		if (bikeLike)
+			return (wheelMask & 0x03u) != 0 && (wheelMask & 0x0Cu) != 0;
+		return (wheelMask & 0x0Fu) == 0x0Fu;
+	}
+
+	void ImmobilizeVehicleNoWheels(uintptr_t pGtaVehicle)
+	{
+		// CVehicle::m_fGasPedal / m_fBreakPedal
+		float* gasPedal = reinterpret_cast<float*>(pGtaVehicle + 0x49C);
+		float* brakePedal = reinterpret_cast<float*>(pGtaVehicle + 0x4A0);
+		if (CanAccess(gasPedal, sizeof(float)))
+			*gasPedal = 0.0f;
+		if (CanAccess(brakePedal, sizeof(float)))
+			*brakePedal = 1.0f;
+
+		// CVehicle::m_nVehicleFlags @ 0x428 — bIsHandbrakeOn is bit 5.
+		unsigned char* flags = reinterpret_cast<unsigned char*>(pGtaVehicle + 0x428);
+		if (CanAccess(flags, sizeof(unsigned char)))
+			*flags = static_cast<unsigned char>(*flags | 0x20u);
+
+		// CPhysical::m_vecMoveSpeed / m_vecTurnSpeed
+		float* moveSpeed = reinterpret_cast<float*>(pGtaVehicle + 0x44);
+		float* turnSpeed = reinterpret_cast<float*>(pGtaVehicle + 0x50);
+		if (CanAccess(moveSpeed, sizeof(float) * 3))
+		{
+			moveSpeed[0] = 0.0f;
+			moveSpeed[1] = 0.0f;
+			moveSpeed[2] = 0.0f;
+		}
+		if (CanAccess(turnSpeed, sizeof(float) * 3))
+		{
+			turnSpeed[0] = 0.0f;
+			turnSpeed[1] = 0.0f;
+			turnSpeed[2] = 0.0f;
+		}
+	}
+
 	void ApplyVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached)
 	{
 		if (wheelId > 3)
@@ -739,9 +820,16 @@ namespace
 			"wheel_lb_dummy",
 			"wheel_rb_dummy"
 		};
+		static const char* const carWheelCompanionNames[] = {
+			NULL,
+			NULL,
+			"wheel_lm_dummy",
+			"wheel_rm_dummy"
+		};
 		// Native order: front-left, front-right, rear-left, rear-right.
 		static const unsigned char carDamageWheelOffsets[] = { 0x08, 0x06, 0x07, 0x05 };
 		static const int carWheelNodeIndexes[] = { 5, 2, 7, 4 }; // LF, RF, LB, RB
+		static const int carWheelCompanionNodes[] = { -1, -1, 6, 3 }; // LM, RM for rear
 		// Bike nodes: front=4, rear=5. Map LF/RF -> front, LB/RB -> rear.
 		static const int bikeWheelNodeIndexes[] = { 4, 4, 5, 5 };
 
@@ -780,34 +868,54 @@ namespace
 				return;
 			}
 
-			unsigned char* wheelStatus = reinterpret_cast<unsigned char*>(pGtaVehicle + AutomobileDamageManagerOffset + carDamageWheelOffsets[wheelId]);
-			if (CanAccess(wheelStatus, sizeof(*wheelStatus)))
-				*wheelStatus = detached ? 2 : 0;
+			const bool rear = (wheelId == 2 || wheelId == 3);
+			const bool doubleRear = rear && VehicleHasDoubleRearWheels(pGtaVehicle);
+			const int primaryNode = carWheelNodeIndexes[wheelId];
+			const int companionNode = carWheelCompanionNodes[wheelId];
 
-			void* wheelNode = NULL;
-			void* wheelNodeAddress = reinterpret_cast<void*>(pGtaVehicle + AutomobileCarNodesOffset + carWheelNodeIndexes[wheelId] * sizeof(void*));
-			if (CanAccess(wheelNodeAddress, sizeof(void*)))
-				wheelNode = CMem::Get<void*>(wheelNodeAddress);
-
-			// CAutomobile::SpawnFlyingComponent only. Never call it on bikes, and
-			// never remove the last remaining wheel (that path crashes in SA).
-			if (detached && wheelNode && !(spawnedMask & wheelBit)
-				&& AutomobileHasOtherAttachedWheel(pGtaVehicle, wheelId))
+			// Dual-rear vehicles break if rear damage bytes are forced missing.
+			if (!doubleRear)
 			{
-				SafeSpawnFlyingComponent(reinterpret_cast<void*>(pGtaVehicle), carWheelNodeIndexes[wheelId]);
-				spawnedMask = static_cast<unsigned char>(spawnedMask | wheelBit);
-			}
-			else if (detached && !(spawnedMask & wheelBit))
-			{
-				// Mark attempted even when we skip spawn, so reapply stays visual-only.
-				spawnedMask = static_cast<unsigned char>(spawnedMask | wheelBit);
+				unsigned char* wheelStatus = reinterpret_cast<unsigned char*>(pGtaVehicle + AutomobileDamageManagerOffset + carDamageWheelOffsets[wheelId]);
+				if (CanAccess(wheelStatus, sizeof(*wheelStatus)))
+					*wheelStatus = detached ? 2 : 0;
 			}
 
-			if (detached && wheelNode && CanAccess(wheelNode, 0xA0))
-				HideAllAtomics(wheelNode);
+			void* wheelNode = GetAutomobileCarNode(pGtaVehicle, primaryNode);
+			if (!wheelNode)
+				wheelNode = GetAutomobileCarNode(pGtaVehicle, companionNode);
+
+			// Only mark spawn-attempted once the car node exists. Otherwise a
+			// too-early apply (common for rear wheels) permanently skips SpawnFlyingComponent.
+			if (detached && wheelNode && !(spawnedMask & wheelBit))
+			{
+				if (AutomobileHasOtherAttachedWheel(pGtaVehicle, wheelId))
+				{
+					SafeSpawnFlyingComponent(reinterpret_cast<void*>(pGtaVehicle),
+						GetAutomobileCarNode(pGtaVehicle, primaryNode) ? primaryNode : companionNode);
+
+					if (companionNode >= 0 && GetAutomobileCarNode(pGtaVehicle, companionNode)
+						&& AutomobileHasOtherAttachedWheel(pGtaVehicle, wheelId))
+					{
+						SafeSpawnFlyingComponent(reinterpret_cast<void*>(pGtaVehicle), companionNode);
+					}
+				}
+
+				spawnedMask = static_cast<unsigned char>(spawnedMask | wheelBit);
+			}
+
+			if (detached)
+			{
+				HideAutomobileCarNode(pGtaVehicle, primaryNode);
+				HideAutomobileCarNode(pGtaVehicle, companionNode);
+			}
 
 			if (pRwClump && CanAccess(pRwClump, 0x20))
+			{
 				HideFrameByName(pRwClump, carWheelNames[wheelId], detached);
+				if (carWheelCompanionNames[wheelId])
+					HideFrameByName(pRwClump, carWheelCompanionNames[wheelId], detached);
+			}
 		}
 		else if (bikeLike)
 		{
@@ -846,7 +954,8 @@ namespace
 				}
 			}
 
-			spawnedMask = static_cast<unsigned char>(spawnedMask | wheelBit);
+			if (wheelNode || (pRwClump && CanAccess(pRwClump, 0x20)))
+				spawnedMask = static_cast<unsigned char>(spawnedMask | wheelBit);
 		}
 
 		if (!detached)
@@ -855,6 +964,12 @@ namespace
 			if (!spawnedMask)
 				g_spawnedFlyingWheels.erase(vehicleId);
 		}
+
+		// No remaining contact wheels → keep vehicle static (reapplied each frame).
+		std::map<unsigned short, unsigned char>::const_iterator detachedIt = g_detachedVehicleWheels.find(vehicleId);
+		const unsigned char detachedMask = (detachedIt != g_detachedVehicleWheels.end()) ? detachedIt->second : 0;
+		if (IsFullyWheelDetached(detachedMask, bikeLike))
+			ImmobilizeVehicleNoWheels(pGtaVehicle);
 	}
 }
 
