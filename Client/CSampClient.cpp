@@ -1,4 +1,5 @@
 #include <SAMP+/client/CSampClient.h>
+#include <SAMP+/client/CLog.h>
 
 namespace
 {
@@ -13,6 +14,24 @@ namespace
 		{ SampClient::VERSION_UNKNOWN, "0.3.7-R4-v2", 0, 0x26EA0C, 0, 0x26E9FC, 0x3DE, 0x00, 0x1134, 0x4C },
 		{ SampClient::VERSION_UNKNOWN, "0.3.7-R5", 0, 0x26EB94, 0, 0x26EB84, 0x3DE, 0x00, 0x1134, 0x4C }
 	};
+
+	const DWORD VehicleListedOffset = 0x3074;
+	const unsigned short MaxSampVehicles = 2000;
+	DWORD g_lastVehicleResolveLog[MaxSampVehicles] = {};
+
+	void LogVehicleResolveFailure(unsigned short vehicleId, const char* stage, DWORD base, DWORD entryPoint, DWORD sampInfo, DWORD pools, DWORD vehiclePool, DWORD sampVehicle, DWORD gtaVehicle)
+	{
+		if (vehicleId >= MaxSampVehicles)
+			return;
+
+		DWORD now = GetTickCount();
+		if (g_lastVehicleResolveLog[vehicleId] && now - g_lastVehicleResolveLog[vehicleId] < 2000)
+			return;
+
+		g_lastVehicleResolveLog[vehicleId] = now;
+		CLog::Write("Wheel resolve failed: vehicle=%u stage=%s base=0x%08X ep=0x%08X sampInfo=0x%08X pools=0x%08X vehiclePool=0x%08X sampVehicle=0x%08X gtaVehicle=0x%08X",
+			vehicleId, stage, base, entryPoint, sampInfo, pools, vehiclePool, sampVehicle, gtaVehicle);
+	}
 
 	bool IsReadableProtection(DWORD protect)
 	{
@@ -199,10 +218,23 @@ namespace SampClient
 	bool ResolveVehicle(unsigned short vehicleId, DWORD& gtaVehicle)
 	{
 		gtaVehicle = 0;
-		if (vehicleId >= 2000)
+		if (vehicleId >= MaxSampVehicles)
 			return false;
 
 		DWORD base = GetBase();
+		DWORD entryPoint = GetEntryPoint(base);
+		DWORD lastSampInfo = 0;
+		DWORD lastPools = 0;
+		DWORD lastVehiclePool = 0;
+		DWORD lastSampVehicle = 0;
+		DWORD lastGtaVehicle = 0;
+		const char* stage = "samp.dll";
+		if (!base)
+		{
+			LogVehicleResolveFailure(vehicleId, stage, base, entryPoint, lastSampInfo, lastPools, lastVehiclePool, lastSampVehicle, lastGtaVehicle);
+			return false;
+		}
+
 		Version version = GetVersion(base);
 		// Some open.mp/SA-MP launchers report an entry point that is not in
 		// the classic version table. Try the detected layout first, then all
@@ -226,9 +258,16 @@ namespace SampClient
 				continue;
 
 			DWORD sampInfo = 0, pools = 0, vehiclePool = 0, sampVehicle = 0;
-			if (!ReadPointer(base + layout->sampInfoOffset, sampInfo)
-				|| !ReadPointer(sampInfo + layout->poolsOffset, pools)
-				)
+			stage = layout->name;
+			if (!ReadPointer(base + layout->sampInfoOffset, sampInfo))
+				continue;
+			lastSampInfo = sampInfo;
+
+			if (!ReadPointer(sampInfo + layout->poolsOffset, pools))
+				continue;
+			lastPools = pools;
+
+			if (!CanRead(pools, 0x20))
 				continue;
 
 			// R4-v2/R5 variants in the wild differ in this one member. Try
@@ -236,15 +275,35 @@ namespace SampClient
 			const DWORD poolOffsets[] = { layout->vehiclePoolOffset, 0x00, 0x0C, 0x1C };
 			for (size_t p = 0; p < sizeof(poolOffsets) / sizeof(poolOffsets[0]); ++p)
 			{
-				if (!ReadPointer(pools + poolOffsets[p], vehiclePool)
-					|| !ReadPointer(vehiclePool + layout->vehicleArrayOffset + vehicleId * sizeof(DWORD), sampVehicle)
-					|| !ReadPointer(sampVehicle + layout->vehicleGtaOffset, gtaVehicle))
+				if (!ReadPointer(pools + poolOffsets[p], vehiclePool))
 					continue;
-				DWORD clump = 0;
-				if (CanRead(gtaVehicle + 0x18, sizeof(DWORD)) && ReadPointer(gtaVehicle + 0x18, clump))
+				lastVehiclePool = vehiclePool;
+
+				DWORD vehicleSlot = vehiclePool + vehicleId * sizeof(DWORD);
+				if (!CanRead(vehicleSlot + VehicleListedOffset, sizeof(DWORD)))
+					continue;
+
+				DWORD listed = *reinterpret_cast<DWORD*>(vehicleSlot + VehicleListedOffset);
+				if (!listed)
+					continue;
+
+				if (!ReadPointer(vehicleSlot + layout->vehicleArrayOffset, sampVehicle))
+					continue;
+				lastSampVehicle = sampVehicle;
+
+				if (!ReadPointer(sampVehicle + layout->vehicleGtaOffset, gtaVehicle))
+					continue;
+				lastGtaVehicle = gtaVehicle;
+
+				// Do not require the RenderWare clump here. The server can send
+				// the detach state while the visual model is still streaming; the
+				// render hook retries and applies it once the clump appears.
+				if (CanRead(gtaVehicle, 0x650))
 					return true;
 			}
 		}
+
+		LogVehicleResolveFailure(vehicleId, stage, base, entryPoint, lastSampInfo, lastPools, lastVehiclePool, lastSampVehicle, lastGtaVehicle);
 		return false;
 	}
 

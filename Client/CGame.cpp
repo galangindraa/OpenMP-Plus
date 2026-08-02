@@ -520,87 +520,168 @@ typedef void*(__thiscall* SpawnFlyingComponent_t)(void* automobile, int nodeInde
 
 namespace
 {
-	void ApplyVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached)
-	{
-	if (wheelId > 3)
-		return;
+	const uintptr_t RwObjectFlagsOffset = 0x02;
+	const uintptr_t RwFrameObjectListOffset = 0x90;
+	const uintptr_t RwFrameChildOffset = 0x98;
+	const uintptr_t RwFrameNextOffset = 0x9C;
+	const uintptr_t RwObjectHasFrameLinkOffset = 0x08;
 
-	static const char* const wheelNames[] = {
-		"wheel_lf_dummy",
-		"wheel_rf_dummy",
-		"wheel_lb_dummy",
-		"wheel_rb_dummy"
+	struct RwLLLinkLite
+	{
+		RwLLLinkLite* next;
+		RwLLLinkLite* prev;
 	};
-	// CAutomobile layout (GTA SA 1.0 US, from plugin-sdk):
-	// m_damageManager is at +0x5A0 and wheel nodes at +0x648.
-	// GTA's damage-manager wheel order is RR, RF, RL, LF, while the
-	// OpenMP native order is FL, FR, RL, RR.
-	static const unsigned char damageWheelOffsets[] = { 0x08, 0x06, 0x07, 0x05 };
-	static const int wheelNodeIndexes[] = { 5, 2, 7, 4 };
 
-	DWORD gtaVehicle = 0;
-	if (!SampClient::ResolveVehicle(vehicleId, gtaVehicle))
+	void HideAllAtomics(void* frame)
 	{
-		CLog::Write("Wheel apply failed: vehicle=%u could not resolve GTA vehicle", vehicleId);
-		return;
-	}
+		if (!frame || !CanAccess(frame, RwFrameNextOffset + sizeof(void*)))
+			return;
 
-	uintptr_t pGtaVehicle = static_cast<uintptr_t>(gtaVehicle);
-	if (!pGtaVehicle || !CanAccess(reinterpret_cast<void*>(pGtaVehicle), 0x20))
-	{
-		CLog::Write("Wheel apply failed: vehicle=%u invalid GTA vehicle=%p", vehicleId, reinterpret_cast<void*>(pGtaVehicle));
-		return;
-	}
+		RwLLLinkLite* objectList = reinterpret_cast<RwLLLinkLite*>(reinterpret_cast<uintptr_t>(frame) + RwFrameObjectListOffset);
+		if (!CanAccess(objectList, sizeof(*objectList)) || !objectList->next)
+			return;
 
-	// Use GTA's actual component/damage path. Setting status 2 is the
-	// game's "missing/fallen off" state; SpawnFlyingComponent removes the
-	// wheel component instead of merely scaling its RenderWare frame.
-	if (CanAccess(reinterpret_cast<void*>(pGtaVehicle + 0x5A0 + damageWheelOffsets[wheelId]), 1))
-	{
-		unsigned char* wheelStatus = reinterpret_cast<unsigned char*>(pGtaVehicle + 0x5A0 + damageWheelOffsets[wheelId]);
-		*wheelStatus = detached ? 2 : 0;
-		if (detached)
+		RwLLLinkLite* terminator = objectList;
+		RwLLLinkLite* current = objectList->next;
+		unsigned int guard = 0;
+
+		while (current && current != terminator && guard++ < 64)
 		{
-			SpawnFlyingComponent_t SpawnFlyingComponent = reinterpret_cast<SpawnFlyingComponent_t>(0x530300);
-			void* wheelNode = CMem::Get<void*>(pGtaVehicle + 0x648 + wheelNodeIndexes[wheelId] * sizeof(void*));
-			if (wheelNode && CanAccess(reinterpret_cast<void*>(0x530300), 4))
-				SpawnFlyingComponent(reinterpret_cast<void*>(pGtaVehicle), wheelNodeIndexes[wheelId], 1);
+			if (!CanAccess(current, sizeof(*current)))
+				break;
+
+			uintptr_t object = reinterpret_cast<uintptr_t>(current) - RwObjectHasFrameLinkOffset;
+			unsigned char* flags = reinterpret_cast<unsigned char*>(object + RwObjectFlagsOffset);
+			if (CanAccess(flags, sizeof(*flags)))
+				*flags = static_cast<unsigned char>(*flags & ~0x04);
+
+			current = current->next;
 		}
 	}
 
-	void* pRwClump = CMem::Get<void*>(pGtaVehicle + 0x18);
-	if (!pRwClump || !CanAccess(pRwClump, 0x20))
+	void HideAllNodesRecursive(void* frame, unsigned int depth = 0)
 	{
-		CLog::Write("Wheel apply failed: vehicle=%u invalid clump=%p", vehicleId, pRwClump);
-		return;
+		if (!frame || depth > 16 || !CanAccess(frame, RwFrameNextOffset + sizeof(void*)))
+			return;
+
+		HideAllAtomics(frame);
+
+		void* child = CMem::Get<void*>(reinterpret_cast<uintptr_t>(frame) + RwFrameChildOffset);
+		void* next = CMem::Get<void*>(reinterpret_cast<uintptr_t>(frame) + RwFrameNextOffset);
+
+		if (child)
+			HideAllNodesRecursive(child, depth + 1);
+		if (next)
+			HideAllNodesRecursive(next, depth + 1);
 	}
 
-	// GTA SA 1.0 US address from CClumpModelInfo::GetFrameFromName.
-	// 0x4C4400 is a different routine and returns an unrelated frame.
-	GetFrameFromName_t GetFrameFromName = reinterpret_cast<GetFrameFromName_t>(0x4C5400);
-	void* pFrame = GetFrameFromName(pRwClump, wheelNames[wheelId]);
-	if (!pFrame || !CanAccess(pFrame, 0x40))
+	void ApplyVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached)
 	{
-		CLog::Write("Wheel apply failed: vehicle=%u wheel=%u frame not found", vehicleId, wheelId);
-		return;
+		if (wheelId > 3)
+			return;
+
+		static const char* const wheelNames[] = {
+			"wheel_lf_dummy",
+			"wheel_rf_dummy",
+			"wheel_lb_dummy",
+			"wheel_rb_dummy"
+		};
+		// Native order: front-left, front-right, rear-left, rear-right.
+		// GTA damage-manager wheel bytes: RR(+5), RF(+6), LR(+7), LF(+8).
+		static const unsigned char damageWheelOffsets[] = { 0x08, 0x06, 0x07, 0x05 };
+		static const int wheelNodeIndexes[] = { 5, 2, 7, 4 };
+
+		DWORD gtaVehicle = 0;
+		if (!SampClient::ResolveVehicle(vehicleId, gtaVehicle))
+		{
+			CLog::Write("Wheel apply failed: vehicle=%u could not resolve GTA vehicle", vehicleId);
+			return;
+		}
+
+		uintptr_t pGtaVehicle = static_cast<uintptr_t>(gtaVehicle);
+		if (!pGtaVehicle || !CanAccess(reinterpret_cast<void*>(pGtaVehicle), 0x650))
+		{
+			CLog::Write("Wheel apply failed: vehicle=%u invalid GTA vehicle=%p", vehicleId, reinterpret_cast<void*>(pGtaVehicle));
+			return;
+		}
+
+		unsigned char* wheelStatus = reinterpret_cast<unsigned char*>(pGtaVehicle + 0x5A0 + damageWheelOffsets[wheelId]);
+		if (CanAccess(wheelStatus, sizeof(*wheelStatus)))
+			*wheelStatus = detached ? 2 : 0;
+
+		void* wheelNode = CMem::Get<void*>(pGtaVehicle + 0x648 + wheelNodeIndexes[wheelId] * sizeof(void*));
+		if (detached && wheelNode)
+		{
+			SpawnFlyingComponent_t SpawnFlyingComponent = reinterpret_cast<SpawnFlyingComponent_t>(0x530300);
+			if (CanAccess(reinterpret_cast<void*>(0x530300), 4))
+			{
+				__try
+				{
+					SpawnFlyingComponent(reinterpret_cast<void*>(pGtaVehicle), wheelNodeIndexes[wheelId], 1);
+				}
+				__except (EXCEPTION_EXECUTE_HANDLER)
+				{
+					CLog::Write("Wheel spawn component failed: vehicle=%u wheel=%u node=%d", vehicleId, wheelId, wheelNodeIndexes[wheelId]);
+				}
+			}
+
+			__try
+			{
+				HideAllAtomics(wheelNode);
+				void* child = CMem::Get<void*>(reinterpret_cast<uintptr_t>(wheelNode) + RwFrameChildOffset);
+				if (child)
+					HideAllNodesRecursive(child);
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER)
+			{
+				CLog::Write("Wheel hide component failed: vehicle=%u wheel=%u node=%d", vehicleId, wheelId, wheelNodeIndexes[wheelId]);
+			}
+		}
+
+		void* pRwClump = CMem::Get<void*>(pGtaVehicle + 0x18);
+		if (!pRwClump || !CanAccess(pRwClump, 0x20))
+		{
+			CLog::Write("Wheel apply pending: vehicle=%u clump not ready", vehicleId);
+			return;
+		}
+
+		GetFrameFromName_t GetFrameFromName = reinterpret_cast<GetFrameFromName_t>(0x4C5400);
+		void* pFrame = GetFrameFromName(pRwClump, wheelNames[wheelId]);
+		if (!pFrame || !CanAccess(pFrame, 0x40))
+		{
+			CLog::Write("Wheel apply pending: vehicle=%u wheel=%u frame not found", vehicleId, wheelId);
+			return;
+		}
+
+		if (detached)
+		{
+			__try
+			{
+				HideAllNodesRecursive(pFrame);
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER)
+			{
+				CLog::Write("Wheel hide frame failed: vehicle=%u wheel=%u", vehicleId, wheelId);
+			}
+		}
+		else
+		{
+			float* pMatrix = reinterpret_cast<float*>(reinterpret_cast<uintptr_t>(pFrame) + 0x10);
+			if (!CanAccess(pMatrix, 36))
+			{
+				CLog::Write("Wheel apply failed: vehicle=%u wheel=%u invalid frame matrix", vehicleId, wheelId);
+				return;
+			}
+
+			pMatrix[0] = 1.0f;
+			pMatrix[5] = 1.0f;
+			pMatrix[10] = 1.0f;
+		}
+
+		RwFrameUpdateObjects_t RwFrameUpdateObjects = reinterpret_cast<RwFrameUpdateObjects_t>(0x644D00);
+		if (CanAccess(reinterpret_cast<void*>(0x644D00), 4))
+			RwFrameUpdateObjects(pFrame);
 	}
-
-	float* pMatrix = reinterpret_cast<float*>(reinterpret_cast<uintptr_t>(pFrame) + 0x10);
-	if (!CanAccess(pMatrix, 36))
-	{
-		CLog::Write("Wheel apply failed: vehicle=%u wheel=%u invalid frame matrix", vehicleId, wheelId);
-		return;
-	}
-
-	float scale = detached ? 0.00001f : 1.0f;
-	pMatrix[0] = scale;
-	pMatrix[5] = scale;
-	pMatrix[10] = scale;
-
-	RwFrameUpdateObjects_t RwFrameUpdateObjects = reinterpret_cast<RwFrameUpdateObjects_t>(0x644D00);
-	if (CanAccess(reinterpret_cast<void*>(0x644D00), 4))
-		RwFrameUpdateObjects(pFrame);
-}
 }
 
 void CGame::SetVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached)
