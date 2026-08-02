@@ -41,6 +41,10 @@ namespace
 	bool g_targetInputBlockWasActive = false;
 	unsigned int g_targetTransitionFlushFrames = 0;
 	std::map<unsigned short, unsigned char> g_detachedVehicleWheels;
+	// Bitmask of wheels that already spawned a flying component. Spawning every
+	// reapply frame corrupts the vehicle and crashes (seen with modloader/dbghelp).
+	std::map<unsigned short, unsigned char> g_spawnedFlyingWheels;
+	DWORD g_lastWheelApplyFailLog[2000] = {};
 	void ReapplyDetachedVehicleWheels();
 
 	typedef void*(__cdecl* GetPad_t)(int);
@@ -67,6 +71,19 @@ namespace
 		const uintptr_t end = start + size;
 		const uintptr_t regionEnd = reinterpret_cast<uintptr_t>(mbi.BaseAddress) + mbi.RegionSize;
 		return end <= regionEnd;
+	}
+
+	void LogWheelApplyFailure(unsigned short vehicleId, const char* reason)
+	{
+		if (vehicleId >= 2000)
+			return;
+
+		DWORD now = GetTickCount();
+		if (g_lastWheelApplyFailLog[vehicleId] && now - g_lastWheelApplyFailLog[vehicleId] < 2000)
+			return;
+
+		g_lastWheelApplyFailLog[vehicleId] = now;
+		CLog::Write("Wheel apply failed: vehicle=%u %s", vehicleId, reason);
 	}
 
 	void ZeroPadRange(uintptr_t address, size_t size)
@@ -520,6 +537,54 @@ typedef void*(__thiscall* SpawnFlyingComponent_t)(void* automobile, int nodeInde
 
 namespace
 {
+	bool SafeSpawnFlyingComponent(void* automobile, int nodeIndex)
+	{
+		if (!automobile || !SampClient::IsExecutableAddress(0x6A34A0))
+			return false;
+
+		SpawnFlyingComponent_t SpawnFlyingComponent = reinterpret_cast<SpawnFlyingComponent_t>(0x6A34A0);
+		__try
+		{
+			SpawnFlyingComponent(automobile, nodeIndex, 1);
+			return true;
+		}
+		__except (EXCEPTION_EXECUTE_HANDLER)
+		{
+			return false;
+		}
+	}
+
+	void* SafeGetFrameFromName(void* clump, const char* name)
+	{
+		if (!clump || !name || !SampClient::IsExecutableAddress(0x4C52A0))
+			return NULL;
+
+		GetFrameFromName_t GetFrameFromName = reinterpret_cast<GetFrameFromName_t>(0x4C52A0);
+		__try
+		{
+			return GetFrameFromName(clump, name);
+		}
+		__except (EXCEPTION_EXECUTE_HANDLER)
+		{
+			return NULL;
+		}
+	}
+
+	void SafeRwFrameUpdateObjects(void* frame)
+	{
+		if (!frame || !SampClient::IsExecutableAddress(0x7F8E00))
+			return;
+
+		RwFrameUpdateObjects_t RwFrameUpdateObjects = reinterpret_cast<RwFrameUpdateObjects_t>(0x7F8E00);
+		__try
+		{
+			RwFrameUpdateObjects(frame);
+		}
+		__except (EXCEPTION_EXECUTE_HANDLER)
+		{
+		}
+	}
+
 	const uintptr_t RwObjectFlagsOffset = 0x02;
 	const uintptr_t RwFrameObjectListOffset = 0x90;
 	const uintptr_t RwFrameChildOffset = 0x98;
@@ -594,111 +659,78 @@ namespace
 		DWORD gtaVehicle = 0;
 		if (!SampClient::ResolveVehicle(vehicleId, gtaVehicle))
 		{
-			CLog::Write("Wheel apply failed: vehicle=%u could not resolve GTA vehicle", vehicleId);
+			LogWheelApplyFailure(vehicleId, "could not resolve GTA vehicle");
 			return;
 		}
 
 		uintptr_t pGtaVehicle = static_cast<uintptr_t>(gtaVehicle);
-		if (!pGtaVehicle || !CanAccess(reinterpret_cast<void*>(pGtaVehicle), 0x20))
+		if (!pGtaVehicle || !CanAccess(reinterpret_cast<void*>(pGtaVehicle), 0x650))
 		{
-			CLog::Write("Wheel apply failed: vehicle=%u invalid GTA vehicle=%p", vehicleId, reinterpret_cast<void*>(pGtaVehicle));
+			LogWheelApplyFailure(vehicleId, "invalid GTA vehicle");
 			return;
 		}
 
 		unsigned char* wheelStatus = reinterpret_cast<unsigned char*>(pGtaVehicle + 0x5A0 + damageWheelOffsets[wheelId]);
 		if (CanAccess(wheelStatus, sizeof(*wheelStatus)))
 			*wheelStatus = detached ? 2 : 0;
-		else
-			CLog::Write("Wheel apply pending: vehicle=%u damage manager not ready", vehicleId);
 
 		void* wheelNode = NULL;
 		void* wheelNodeAddress = reinterpret_cast<void*>(pGtaVehicle + 0x648 + wheelNodeIndexes[wheelId] * sizeof(void*));
 		if (CanAccess(wheelNodeAddress, sizeof(void*)))
 			wheelNode = CMem::Get<void*>(wheelNodeAddress);
 
-		if (detached && wheelNode)
+		const unsigned char wheelBit = static_cast<unsigned char>(1u << wheelId);
+		unsigned char& spawnedMask = g_spawnedFlyingWheels[vehicleId];
+
+		if (detached && wheelNode && !(spawnedMask & wheelBit))
 		{
-			SpawnFlyingComponent_t SpawnFlyingComponent = reinterpret_cast<SpawnFlyingComponent_t>(0x6A34A0);
-			if (SampClient::IsExecutableAddress(0x6A34A0))
-			{
-				__try
-				{
-					SpawnFlyingComponent(reinterpret_cast<void*>(pGtaVehicle), wheelNodeIndexes[wheelId], 1);
-				}
-				__except (EXCEPTION_EXECUTE_HANDLER)
-				{
-					CLog::Write("Wheel spawn component failed: vehicle=%u wheel=%u node=%d", vehicleId, wheelId, wheelNodeIndexes[wheelId]);
-				}
-			}
+			if (!SafeSpawnFlyingComponent(reinterpret_cast<void*>(pGtaVehicle), wheelNodeIndexes[wheelId]))
+				CLog::Write("Wheel spawn component failed: vehicle=%u wheel=%u node=%d", vehicleId, wheelId, wheelNodeIndexes[wheelId]);
+
+			// Always mark attempted so reapply never calls SpawnFlyingComponent again.
+			spawnedMask = static_cast<unsigned char>(spawnedMask | wheelBit);
 		}
+
+		if (!detached)
+		{
+			spawnedMask = static_cast<unsigned char>(spawnedMask & ~wheelBit);
+			if (!spawnedMask)
+				g_spawnedFlyingWheels.erase(vehicleId);
+		}
+
+		if (detached && wheelNode && CanAccess(wheelNode, 0xA0))
+			HideAllAtomics(wheelNode);
 
 		void* pRwClump = NULL;
 		if (CanAccess(reinterpret_cast<void*>(pGtaVehicle + 0x18), sizeof(void*)))
 			pRwClump = CMem::Get<void*>(pGtaVehicle + 0x18);
 
 		if (!pRwClump || !CanAccess(pRwClump, 0x20))
-		{
-			CLog::Write("Wheel apply pending: vehicle=%u clump not ready", vehicleId);
-			return;
-		}
-
-		GetFrameFromName_t GetFrameFromName = reinterpret_cast<GetFrameFromName_t>(0x4C52A0);
-		if (!SampClient::IsExecutableAddress(0x4C52A0))
 			return;
 
-		void* pFrame = NULL;
-		__try
-		{
-			pFrame = GetFrameFromName(pRwClump, wheelNames[wheelId]);
-		}
-		__except (EXCEPTION_EXECUTE_HANDLER)
-		{
-			CLog::Write("Wheel apply pending: vehicle=%u wheel=%u GetFrameFromName crashed", vehicleId, wheelId);
-			return;
-		}
-
+		void* pFrame = SafeGetFrameFromName(pRwClump, wheelNames[wheelId]);
 		if (!pFrame || !CanAccess(pFrame, 0x40))
-		{
-			CLog::Write("Wheel apply pending: vehicle=%u wheel=%u frame not found", vehicleId, wheelId);
 			return;
-		}
+
+		float* pMatrix = reinterpret_cast<float*>(reinterpret_cast<uintptr_t>(pFrame) + 0x10);
+		if (!CanAccess(pMatrix, 36))
+			return;
 
 		if (detached)
 		{
-			float* pMatrix = reinterpret_cast<float*>(reinterpret_cast<uintptr_t>(pFrame) + 0x10);
-			if (CanAccess(pMatrix, 36))
-			{
-				pMatrix[0] = 0.00001f;
-				pMatrix[5] = 0.00001f;
-				pMatrix[10] = 0.00001f;
-			}
+			pMatrix[0] = 0.00001f;
+			pMatrix[5] = 0.00001f;
+			pMatrix[10] = 0.00001f;
+			HideAllNodesRecursive(pFrame);
 		}
 		else
 		{
-			float* pMatrix = reinterpret_cast<float*>(reinterpret_cast<uintptr_t>(pFrame) + 0x10);
-			if (!CanAccess(pMatrix, 36))
-			{
-				CLog::Write("Wheel apply failed: vehicle=%u wheel=%u invalid frame matrix", vehicleId, wheelId);
-				return;
-			}
-
 			pMatrix[0] = 1.0f;
 			pMatrix[5] = 1.0f;
 			pMatrix[10] = 1.0f;
 		}
 
-		if (SampClient::IsExecutableAddress(0x7F8E00))
-		{
-			RwFrameUpdateObjects_t RwFrameUpdateObjects = reinterpret_cast<RwFrameUpdateObjects_t>(0x7F8E00);
-			__try
-			{
-				RwFrameUpdateObjects(pFrame);
-			}
-			__except (EXCEPTION_EXECUTE_HANDLER)
-			{
-				CLog::Write("Wheel frame update failed: vehicle=%u wheel=%u", vehicleId, wheelId);
-			}
-		}
+		SafeRwFrameUpdateObjects(pFrame);
 	}
 }
 
@@ -717,7 +749,16 @@ void CGame::SetVehicleWheelDetached(unsigned short vehicleId, unsigned char whee
 	if (detached)
 		wheelMask = static_cast<unsigned char>(wheelMask | wheelBit);
 	else
+	{
 		wheelMask = static_cast<unsigned char>(wheelMask & ~wheelBit);
+		std::map<unsigned short, unsigned char>::iterator spawned = g_spawnedFlyingWheels.find(vehicleId);
+		if (spawned != g_spawnedFlyingWheels.end())
+		{
+			spawned->second = static_cast<unsigned char>(spawned->second & ~wheelBit);
+			if (!spawned->second)
+				g_spawnedFlyingWheels.erase(spawned);
+		}
+	}
 
 	if (!wheelMask)
 		g_detachedVehicleWheels.erase(vehicleId);

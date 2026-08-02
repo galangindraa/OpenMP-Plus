@@ -68,6 +68,61 @@ namespace
 			return false;
 		}
 	}
+
+	bool TryResolveWithLayout(const SampClient::Layout& layout, DWORD base, unsigned short vehicleId,
+		DWORD& lastSampInfo, DWORD& lastPools, DWORD& lastVehiclePool, DWORD& lastSampVehicle, DWORD& lastGtaVehicle, DWORD& gtaVehicle)
+	{
+		if (!layout.sampInfoOffset)
+			return false;
+
+		DWORD sampInfo = 0, pools = 0, vehiclePool = 0, sampVehicle = 0;
+		if (!SampClient::ReadPointer(base + layout.sampInfoOffset, sampInfo))
+			return false;
+		if (!SampClient::ValidateVTableObject(sampInfo, 1))
+			return false;
+		lastSampInfo = sampInfo;
+
+		if (!SampClient::ReadPointer(sampInfo + layout.poolsOffset, pools) || !SampClient::CanRead(pools, 0x20))
+			return false;
+		lastPools = pools;
+
+		// Prefer the documented pool offset, then common alternates used by
+		// launcher-patched clients.
+		const DWORD poolOffsets[] = { layout.vehiclePoolOffset, 0x00, 0x0C, 0x1C };
+		for (size_t p = 0; p < sizeof(poolOffsets) / sizeof(poolOffsets[0]); ++p)
+		{
+			if (!SampClient::ReadPointer(pools + poolOffsets[p], vehiclePool) || !SampClient::CanRead(vehiclePool, VehicleListedOffset + MaxSampVehicles * sizeof(DWORD)))
+				continue;
+			lastVehiclePool = vehiclePool;
+
+			DWORD vehicleSlot = vehiclePool + vehicleId * sizeof(DWORD);
+			if (!SampClient::CanRead(vehicleSlot + VehicleListedOffset, sizeof(DWORD)))
+				continue;
+
+			DWORD listed = *reinterpret_cast<DWORD*>(vehicleSlot + VehicleListedOffset);
+			if (!listed)
+				continue;
+
+			if (!SampClient::ReadPointer(vehicleSlot + layout.vehicleArrayOffset, sampVehicle) || !SampClient::CanRead(sampVehicle, 0x50))
+				continue;
+			lastSampVehicle = sampVehicle;
+
+			if (!SampClient::ReadPointer(sampVehicle + layout.vehicleGtaOffset, gtaVehicle) || !SampClient::CanRead(gtaVehicle, 0x20))
+				continue;
+			lastGtaVehicle = gtaVehicle;
+
+			DWORD gtaVtable = 0;
+			if (!SampClient::ReadPointer(gtaVehicle, gtaVtable) || !SampClient::IsExecutableAddress(gtaVtable))
+			{
+				gtaVehicle = 0;
+				continue;
+			}
+
+			return true;
+		}
+
+		return false;
+	}
 }
 
 namespace SampClient
@@ -235,85 +290,38 @@ namespace SampClient
 			return false;
 		}
 
-		static const DWORD sampInfoOffsets[] = { 0x26EB94, 0x26EA0C, 0x26E8DC, 0x21A0F8, 0x2ACA24, 0x26EB84, 0x26E9FC, 0x26E8CC, 0x21A0E8, 0x2ACA14 };
-		static const DWORD poolsOffsets[] = { 0x3DE, 0x2C, 0x3CD, 0x1C, 0x00 };
-		static const DWORD poolOffsets[] = { 0x1C, 0x0C, 0x00, 0x18, 0x14 };
+		Version version = GetVersion(base);
+		const size_t layoutCount = sizeof(kLayouts) / sizeof(kLayouts[0]);
 
-		for (size_t s = 0; s < sizeof(sampInfoOffsets) / sizeof(sampInfoOffsets[0]); ++s)
+		// Prefer the entry-point layout (0.3DL-R1 here), then fall back to
+		// other known layouts for patched/launcher clients.
+		for (size_t pass = 0; pass <= layoutCount; ++pass)
 		{
-			DWORD sampInfo = 0;
-			if (!ReadPointer(base + sampInfoOffsets[s], sampInfo) || !CanRead(sampInfo, 0x400))
+			const Layout* layout = 0;
+			if (pass == 0 && version != VERSION_UNKNOWN)
+			{
+				for (size_t i = 0; i < layoutCount; ++i)
+				{
+					if (kLayouts[i].version == version)
+					{
+						layout = &kLayouts[i];
+						break;
+					}
+				}
+			}
+			else
+			{
+				size_t index = (version != VERSION_UNKNOWN) ? pass - 1 : pass;
+				if (index < layoutCount)
+					layout = &kLayouts[index];
+			}
+
+			if (!layout)
 				continue;
-			lastSampInfo = sampInfo;
 
-			for (size_t p = 0; p < sizeof(poolsOffsets) / sizeof(poolsOffsets[0]); ++p)
-			{
-				DWORD pools = 0;
-				if (!ReadPointer(sampInfo + poolsOffsets[p], pools) || !CanRead(pools, 0x40))
-					continue;
-				lastPools = pools;
-
-				for (size_t vp = 0; vp < sizeof(poolOffsets) / sizeof(poolOffsets[0]); ++vp)
-				{
-					DWORD vehiclePool = 0;
-					if (!ReadPointer(pools + poolOffsets[vp], vehiclePool) || !CanRead(vehiclePool, 0x4000))
-						continue;
-					lastVehiclePool = vehiclePool;
-
-					static const DWORD arrayBaseOffsets[] = { 0x1134, 0x0000, 0x0018, 0x2E68, 0x1F40, 0x000C, 0x0020, 0x1000, 0x2000, 0x3000 };
-					for (size_t arr = 0; arr < sizeof(arrayBaseOffsets) / sizeof(arrayBaseOffsets[0]); ++arr)
-					{
-						DWORD slotAddr = vehiclePool + arrayBaseOffsets[arr] + vehicleId * sizeof(DWORD);
-						DWORD sampVehicle = 0;
-						if (!ReadPointer(slotAddr, sampVehicle) || !CanRead(sampVehicle, 0x100))
-							continue;
-						lastSampVehicle = sampVehicle;
-
-						for (DWORD gtaOff = 0; gtaOff <= 0x90; gtaOff += 4)
-						{
-							DWORD candGta = 0;
-							if (!ReadPointer(sampVehicle + gtaOff, candGta) || !CanRead(candGta, 0x20))
-								continue;
-
-							DWORD gtaVtable = 0;
-							if (!ReadPointer(candGta, gtaVtable) || !IsExecutableAddress(gtaVtable))
-								continue;
-
-							DWORD rwClump = 0;
-							if (!ReadPointer(candGta + 0x18, rwClump) || !CanRead(rwClump, 0x20))
-								continue;
-
-							lastGtaVehicle = candGta;
-							gtaVehicle = candGta;
-							return true;
-						}
-					}
-				}
-			}
-		}
-
-		DWORD pGtaPoolObj = 0;
-		if (ReadPointer(0xB74494, pGtaPoolObj) && CanRead(pGtaPoolObj, 0x10))
-		{
-			DWORD pObjectsArray = 0;
-			if (ReadPointer(pGtaPoolObj, pObjectsArray) && CanRead(pObjectsArray, 110 * sizeof(DWORD)))
-			{
-				for (int i = 0; i < 110; ++i)
-				{
-					DWORD candGta = 0;
-					if (ReadPointer(pObjectsArray + i * sizeof(DWORD), candGta) && CanRead(candGta, 0x20))
-					{
-						DWORD gtaVtable = 0;
-						DWORD rwClump = 0;
-						if (ReadPointer(candGta, gtaVtable) && IsExecutableAddress(gtaVtable) &&
-							ReadPointer(candGta + 0x18, rwClump) && CanRead(rwClump, 0x20))
-						{
-							gtaVehicle = candGta;
-							return true;
-						}
-					}
-				}
-			}
+			stage = layout->name;
+			if (TryResolveWithLayout(*layout, base, vehicleId, lastSampInfo, lastPools, lastVehiclePool, lastSampVehicle, lastGtaVehicle, gtaVehicle))
+				return true;
 		}
 
 		LogVehicleResolveFailure(vehicleId, stage, base, entryPoint, lastSampInfo, lastPools, lastVehiclePool, lastSampVehicle, lastGtaVehicle);
