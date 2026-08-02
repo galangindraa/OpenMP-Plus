@@ -579,6 +579,9 @@ bool OMPPlusComponent::setVehicleWheelDetached(int vehicleid, uint8_t wheelid, b
 	if (vehicleid <= 0 || wheelid > 3)
 		return false;
 
+	if (core_)
+		core_->printLn("[OpenMP-Plus] Wheel detach native: vehicle=%d wheel=%u detached=%s.", vehicleid, static_cast<unsigned>(wheelid), detached ? "true" : "false");
+
 	auto& wheels = detachedVehicleWheels_[vehicleid];
 	wheels[wheelid] = detached;
 	if (std::none_of(wheels.begin(), wheels.end(), [](bool wheelDetached)

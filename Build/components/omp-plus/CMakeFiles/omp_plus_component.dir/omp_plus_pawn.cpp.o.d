@@ -3,13 +3,13 @@ components/omp-plus/CMakeFiles/omp_plus_component.dir/omp_plus_pawn.cpp.o: \
  /usr/include/stdc-predef.h \
  /home/indra/Documents/Script/OpenMP-Plus/components/omp-plus/omp_plus_component.hpp \
  /usr/include/c++/16/algorithm /usr/include/c++/16/bits/stl_algobase.h \
- /usr/include/c++/16/x86_64-pc-linux-gnu/bits/c++config.h \
- /usr/include/c++/16/x86_64-pc-linux-gnu/bits/os_defines.h \
+ /usr/include/c++/16/x86_64-pc-linux-gnu/32/bits/c++config.h \
+ /usr/include/c++/16/x86_64-pc-linux-gnu/32/bits/os_defines.h \
  /usr/include/features.h /usr/include/features-time64.h \
  /usr/include/bits/wordsize.h /usr/include/bits/timesize.h \
  /usr/include/sys/cdefs.h /usr/include/bits/long-double.h \
- /usr/include/gnu/stubs.h /usr/include/gnu/stubs-64.h \
- /usr/include/c++/16/x86_64-pc-linux-gnu/bits/cpu_defines.h \
+ /usr/include/gnu/stubs.h /usr/include/gnu/stubs-32.h \
+ /usr/include/c++/16/x86_64-pc-linux-gnu/32/bits/cpu_defines.h \
  /usr/include/c++/16/pstl/pstl_config.h \
  /usr/include/c++/16/bits/cpp_type_traits.h \
  /usr/include/c++/16/bits/version.h /usr/include/c++/16/type_traits \
@@ -75,11 +75,11 @@ components/omp-plus/CMakeFiles/omp_plus_component.dir/omp_plus_pawn.cpp.o: \
  /usr/include/bits/types/wint_t.h /usr/include/bits/types/mbstate_t.h \
  /usr/include/bits/types/__mbstate_t.h /usr/include/bits/types/__FILE.h \
  /usr/include/bits/types/FILE.h /usr/include/c++/16/bits/allocator.h \
- /usr/include/c++/16/x86_64-pc-linux-gnu/bits/c++allocator.h \
+ /usr/include/c++/16/x86_64-pc-linux-gnu/32/bits/c++allocator.h \
  /usr/include/c++/16/bits/new_allocator.h \
  /usr/include/c++/16/bits/new_throw.h \
  /usr/include/c++/16/bits/localefwd.h \
- /usr/include/c++/16/x86_64-pc-linux-gnu/bits/c++locale.h \
+ /usr/include/c++/16/x86_64-pc-linux-gnu/32/bits/c++locale.h \
  /usr/include/c++/16/clocale /usr/include/locale.h \
  /usr/include/bits/locale.h /usr/include/c++/16/iosfwd \
  /usr/include/c++/16/cctype /usr/include/ctype.h \
@@ -192,20 +192,20 @@ components/omp-plus/CMakeFiles/omp_plus_component.dir/omp_plus_pawn.cpp.o: \
  /usr/include/c++/16/bits/shared_ptr_base.h /usr/include/c++/16/typeinfo \
  /usr/include/c++/16/bits/allocated_ptr.h \
  /usr/include/c++/16/bits/refwrap.h /usr/include/c++/16/ext/atomicity.h \
- /usr/include/c++/16/x86_64-pc-linux-gnu/bits/gthr.h \
- /usr/include/c++/16/x86_64-pc-linux-gnu/bits/gthr-default.h \
+ /usr/include/c++/16/x86_64-pc-linux-gnu/32/bits/gthr.h \
+ /usr/include/c++/16/x86_64-pc-linux-gnu/32/bits/gthr-default.h \
  /usr/include/pthread.h /usr/include/sched.h /usr/include/bits/sched.h \
  /usr/include/linux/sched/types.h /usr/include/linux/types.h \
  /usr/include/asm/types.h /usr/include/asm-generic/types.h \
  /usr/include/asm-generic/int-ll64.h /usr/include/asm/bitsperlong.h \
  /usr/include/asm-generic/bitsperlong.h /usr/include/linux/posix_types.h \
  /usr/include/linux/stddef.h /usr/include/asm/posix_types.h \
- /usr/include/asm/posix_types_64.h /usr/include/asm-generic/posix_types.h \
+ /usr/include/asm/posix_types_32.h /usr/include/asm-generic/posix_types.h \
  /usr/include/bits/types/struct_sched_param.h /usr/include/bits/cpu-set.h \
  /usr/include/bits/setjmp.h \
  /usr/include/bits/types/struct___jmp_buf_tag.h \
  /usr/include/bits/pthread_stack_min-dynamic.h \
- /usr/include/c++/16/x86_64-pc-linux-gnu/bits/atomic_word.h \
+ /usr/include/c++/16/x86_64-pc-linux-gnu/32/bits/atomic_word.h \
  /usr/include/sys/single_threaded.h /usr/include/c++/16/ext/concurrence.h \
  /usr/include/c++/16/exception /usr/include/c++/16/bits/exception_ptr.h \
  /usr/include/c++/16/bits/cxxabi_init_exception.h \
@@ -222,7 +222,7 @@ components/omp-plus/CMakeFiles/omp_plus_component.dir/omp_plus_pawn.cpp.o: \
  /usr/include/c++/16/bits/functexcept.h \
  /usr/include/c++/16/bits/locale_classes.tcc \
  /usr/include/c++/16/system_error \
- /usr/include/c++/16/x86_64-pc-linux-gnu/bits/error_constants.h \
+ /usr/include/c++/16/x86_64-pc-linux-gnu/32/bits/error_constants.h \
  /usr/include/c++/16/stdexcept \
  /usr/include/c++/16/bits/stdexcept_except.h \
  /usr/include/c++/16/bits/streambuf.tcc \
@@ -231,8 +231,8 @@ components/omp-plus/CMakeFiles/omp_plus_component.dir/omp_plus_pawn.cpp.o: \
  /usr/include/c++/16/ios /usr/include/c++/16/bits/basic_ios.h \
  /usr/include/c++/16/bits/locale_facets.h /usr/include/c++/16/cwctype \
  /usr/include/wctype.h /usr/include/bits/wctype-wchar.h \
- /usr/include/c++/16/x86_64-pc-linux-gnu/bits/ctype_base.h \
- /usr/include/c++/16/x86_64-pc-linux-gnu/bits/ctype_inline.h \
+ /usr/include/c++/16/x86_64-pc-linux-gnu/32/bits/ctype_base.h \
+ /usr/include/c++/16/x86_64-pc-linux-gnu/32/bits/ctype_inline.h \
  /usr/include/c++/16/bits/locale_facets.tcc \
  /usr/include/c++/16/bits/basic_ios.tcc \
  /usr/include/c++/16/bits/ostream_print.h \

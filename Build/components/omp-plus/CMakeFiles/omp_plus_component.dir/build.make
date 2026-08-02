@@ -128,7 +128,7 @@ Release/omp-plus.so: components/omp-plus/CMakeFiles/omp_plus_component.dir/omp_p
 Release/omp-plus.so: components/omp-plus/CMakeFiles/omp_plus_component.dir/omp_plus_pawn.cpp.o
 Release/omp-plus.so: components/omp-plus/CMakeFiles/omp_plus_component.dir/build.make
 Release/omp-plus.so: components/omp-plus/CMakeFiles/omp_plus_component.dir/compiler_depend.ts
-Release/omp-plus.so: Release/libOMP-Network.a
+Release/omp-plus.so: ThirdParty/openmp-network/libOMP-Network.a
 Release/omp-plus.so: components/omp-plus/CMakeFiles/omp_plus_component.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/indra/Documents/Script/OpenMP-Plus/Build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX shared library ../../Release/omp-plus.so"
 	cd /home/indra/Documents/Script/OpenMP-Plus/Build/components/omp-plus && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/omp_plus_component.dir/link.txt --verbose=$(VERBOSE)

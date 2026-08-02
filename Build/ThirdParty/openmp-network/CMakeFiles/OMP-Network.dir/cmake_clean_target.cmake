@@ -1,3 +1,3 @@
 file(REMOVE_RECURSE
-  "../../Release/libOMP-Network.a"
+  "libOMP-Network.a"
 )

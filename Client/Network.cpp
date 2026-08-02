@@ -53,6 +53,19 @@ namespace Network
 	{
 		switch (usRpcId)
 		{
+			case eRPC::SET_VEHICLE_WHEEL_DETACHED:
+			{
+				unsigned short vehicleId;
+				unsigned char wheelId;
+				bool detached;
+
+				if (bitStream.Read(vehicleId) && bitStream.Read(wheelId) && bitStream.Read(detached))
+				{
+					CLog::Write("Wheel detach RPC: vehicle=%u wheel=%u detached=%u", vehicleId, wheelId, detached ? 1 : 0);
+					CGame::SetVehicleWheelDetached(vehicleId, wheelId, detached);
+				}
+				break;
+			}
 			case eRPC::SET_KEY_BIND:
 			{
 				unsigned short key;

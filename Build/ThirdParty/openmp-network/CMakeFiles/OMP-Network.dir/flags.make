@@ -6,5 +6,5 @@ CXX_DEFINES = -DGLM_FORCE_QUAT_DATA_WXYZ -DGLM_FORCE_SSE2 -DNOMINMAX -Dnssv_CONF
 
 CXX_INCLUDES = -I/home/indra/Documents/Script/OpenMP-Plus/ThirdParty/openmp-network/. -I/home/indra/Documents/Script/OpenMP-Plus/ThirdParty/openmp-sdk/include -I/home/indra/Documents/Script/OpenMP-Plus/ThirdParty/openmp-sdk/lib/glm/glm/.. -I/home/indra/Documents/Script/OpenMP-Plus/ThirdParty/openmp-sdk/lib/robin-hood-hashing/src/include -I/home/indra/Documents/Script/OpenMP-Plus/ThirdParty/openmp-sdk/lib/span-lite/include -I/home/indra/Documents/Script/OpenMP-Plus/ThirdParty/openmp-sdk/lib/string-view-lite/include
 
-CXX_FLAGS = -O3 -DNDEBUG -std=c++17 -fPIC -msse2 -mfpmath=sse -Werror=format
+CXX_FLAGS = -m32 -O3 -DNDEBUG -std=c++17 -fPIC -msse2 -mfpmath=sse -Werror=format
 

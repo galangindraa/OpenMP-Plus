@@ -6,5 +6,5 @@ CXX_DEFINES = -DHAVE_STDINT_H -DLINUX -DSAMPGDK_AMALGAMATION -D_GNU_SOURCE -D_LI
 
 CXX_INCLUDES = -I/home/indra/Documents/Script/OpenMP-Plus/Include -I/home/indra/Documents/Script/OpenMP-Plus/Include/amx -I/home/indra/Documents/Script/OpenMP-Plus/Include/RakNet
 
-CXX_FLAGS = -O3 -DNDEBUG -std=c++11 -m32 -fPIC -w -fpermissive
+CXX_FLAGS = -m32 -O3 -DNDEBUG -std=c++11 -m32 -fPIC -w -fpermissive
 

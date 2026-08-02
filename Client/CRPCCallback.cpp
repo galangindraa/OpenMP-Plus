@@ -427,6 +427,7 @@ RPC_CALLBACK CRPCCallback::SetVehicleWheelDetached(RPC_ARGS)
 
 	if (bsData.Read(vehicleId) && bsData.Read(wheelId) && bsData.Read(detached))
 	{
+		CLog::Write("Wheel detach RPC: vehicle=%u wheel=%u detached=%u", vehicleId, wheelId, detached ? 1 : 0);
 		CGame::SetVehicleWheelDetached(vehicleId, wheelId, detached);
 	}
 }

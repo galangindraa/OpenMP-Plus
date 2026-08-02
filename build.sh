@@ -7,7 +7,7 @@ if [[ ! -d Build ]]; then
 fi
 
 pushd Build
-	cmake ../
+	cmake -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32 -DCMAKE_SHARED_LINKER_FLAGS=-m32 ../
 	make
 popd
 
