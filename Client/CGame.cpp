@@ -533,26 +533,41 @@ namespace
 
 	DWORD gtaVehicle = 0;
 	if (!SampClient::ResolveVehicle(vehicleId, gtaVehicle))
+	{
+		CLog::Write("Wheel apply failed: vehicle=%u could not resolve GTA vehicle", vehicleId);
 		return;
+	}
 
 	uintptr_t pGtaVehicle = static_cast<uintptr_t>(gtaVehicle);
 	if (!pGtaVehicle || !CanAccess(reinterpret_cast<void*>(pGtaVehicle), 0x20))
+	{
+		CLog::Write("Wheel apply failed: vehicle=%u invalid GTA vehicle=%p", vehicleId, reinterpret_cast<void*>(pGtaVehicle));
 		return;
+	}
 
 	void* pRwClump = CMem::Get<void*>(pGtaVehicle + 0x18);
 	if (!pRwClump || !CanAccess(pRwClump, 0x20))
+	{
+		CLog::Write("Wheel apply failed: vehicle=%u invalid clump=%p", vehicleId, pRwClump);
 		return;
+	}
 
 	// GTA SA 1.0 US addresses. 4C52A0 is not the frame lookup routine and
 	// silently returns an unrelated result, leaving the wheel visible.
 	GetFrameFromName_t GetFrameFromName = reinterpret_cast<GetFrameFromName_t>(0x4C4400);
 	void* pFrame = GetFrameFromName(pRwClump, wheelNames[wheelId]);
 	if (!pFrame || !CanAccess(pFrame, 0x40))
+	{
+		CLog::Write("Wheel apply failed: vehicle=%u wheel=%u frame not found", vehicleId, wheelId);
 		return;
+	}
 
 	float* pMatrix = reinterpret_cast<float*>(reinterpret_cast<uintptr_t>(pFrame) + 0x10);
 	if (!CanAccess(pMatrix, 36))
+	{
+		CLog::Write("Wheel apply failed: vehicle=%u wheel=%u invalid frame matrix", vehicleId, wheelId);
 		return;
+	}
 
 	float scale = detached ? 0.00001f : 1.0f;
 	pMatrix[0] = scale;
