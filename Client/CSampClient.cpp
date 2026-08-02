@@ -198,19 +198,37 @@ namespace SampClient
 
 		DWORD base = GetBase();
 		Version version = GetVersion(base);
-		Layout layout;
-		DWORD sampInfo = 0;
-		DWORD pools = 0;
-		DWORD vehiclePool = 0;
-		DWORD sampVehicle = 0;
-		if (!GetLayout(version, layout)
-			|| !ReadPointer(base + layout.sampInfoOffset, sampInfo)
-			|| !ReadPointer(sampInfo + layout.poolsOffset, pools)
-			|| !ReadPointer(pools + layout.vehiclePoolOffset, vehiclePool)
-			|| !ReadPointer(vehiclePool + layout.vehicleArrayOffset + vehicleId * sizeof(DWORD), sampVehicle))
-			return false;
+		// Some open.mp/SA-MP launchers report an entry point that is not in
+		// the classic version table. Try the detected layout first, then all
+		// known layouts; the pointer chain itself is the reliable check.
+		for (size_t pass = 0; pass < sizeof(kLayouts) / sizeof(kLayouts[0]); ++pass)
+		{
+			const Layout* layout = 0;
+			if (pass == 0 && version != VERSION_UNKNOWN)
+			{
+				for (size_t i = 0; i < sizeof(kLayouts) / sizeof(kLayouts[0]); ++i)
+					if (kLayouts[i].version == version) { layout = &kLayouts[i]; break; }
+			}
+			else
+			{
+				size_t index = (version != VERSION_UNKNOWN) ? pass - 1 : pass;
+				if (index < sizeof(kLayouts) / sizeof(kLayouts[0]))
+					layout = &kLayouts[index];
+			}
+			if (!layout)
+				continue;
 
-		return ReadPointer(sampVehicle + layout.vehicleGtaOffset, gtaVehicle);
+			DWORD sampInfo = 0, pools = 0, vehiclePool = 0, sampVehicle = 0;
+			if (!ReadPointer(base + layout->sampInfoOffset, sampInfo)
+				|| !ReadPointer(sampInfo + layout->poolsOffset, pools)
+				|| !ReadPointer(pools + layout->vehiclePoolOffset, vehiclePool)
+				|| !ReadPointer(vehiclePool + layout->vehicleArrayOffset + vehicleId * sizeof(DWORD), sampVehicle)
+				|| !ReadPointer(sampVehicle + layout->vehicleGtaOffset, gtaVehicle))
+				continue;
+
+			return true;
+		}
+		return false;
 	}
 
 	bool IsChatInputActive()
