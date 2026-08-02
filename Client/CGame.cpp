@@ -552,9 +552,9 @@ namespace
 		return;
 	}
 
-	// GTA SA 1.0 US addresses. 4C52A0 is not the frame lookup routine and
-	// silently returns an unrelated result, leaving the wheel visible.
-	GetFrameFromName_t GetFrameFromName = reinterpret_cast<GetFrameFromName_t>(0x4C4400);
+	// GTA SA 1.0 US address from CClumpModelInfo::GetFrameFromName.
+	// 0x4C4400 is a different routine and returns an unrelated frame.
+	GetFrameFromName_t GetFrameFromName = reinterpret_cast<GetFrameFromName_t>(0x4C5400);
 	void* pFrame = GetFrameFromName(pRwClump, wheelNames[wheelId]);
 	if (!pFrame || !CanAccess(pFrame, 0x40))
 	{
