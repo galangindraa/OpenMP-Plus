@@ -38,6 +38,7 @@ public:
 	static void MarkersHook();
 	static void RadioHook();
 	static void DrinkSprunkHook();
+	static void AutomobilePreRenderEnd();
 
 	static void TestDraw();
 
@@ -70,6 +71,7 @@ public:
 	static DWORD MarkersHookJmpBack; // unused
 	static DWORD RadioHookJmpBack;
 	static DWORD DrinkSprunkJmpBack;
+	static DWORD AutomobilePreRenderEndJumpBack;
 
 	static DWORD HUDColourList[];
 	static sStuntDetails StuntDetails;

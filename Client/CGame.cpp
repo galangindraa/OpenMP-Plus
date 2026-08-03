@@ -44,8 +44,11 @@ namespace
 	// Bitmask of wheels that already spawned a flying component. Spawning every
 	// reapply frame corrupts the vehicle and crashes (seen with modloader/dbghelp).
 	std::map<unsigned short, unsigned char> g_spawnedFlyingWheels;
+	// GTA vehicle pointer -> detached wheel mask (for PreRender re-hide).
+	std::map<DWORD, unsigned char> g_detachedGtaWheelMask;
 	DWORD g_lastWheelApplyFailLog[2000] = {};
 	void ReapplyDetachedVehicleWheels();
+	void HideDetachedAutomobileWheels(uintptr_t pGtaVehicle, unsigned char wheelMask);
 
 	typedef void*(__cdecl* GetPad_t)(int);
 	typedef void(__thiscall* PadClear_t)(void*, bool, bool);
@@ -640,6 +643,26 @@ namespace
 			HideAllNodesRecursive(next, depth + 1);
 	}
 
+	// Hide this frame and its descendants only — do not walk sibling `next`
+	// (car-node siblings are other vehicle parts).
+	void HideNodeAndChildren(void* frame, unsigned int depth = 0)
+	{
+		if (!frame || depth > 16 || !CanAccess(frame, RwFrameNextOffset + sizeof(void*)))
+			return;
+
+		HideAllAtomics(frame);
+
+		void* child = CMem::Get<void*>(reinterpret_cast<uintptr_t>(frame) + RwFrameChildOffset);
+		unsigned int guard = 0;
+		while (child && guard++ < 64)
+		{
+			if (!CanAccess(child, RwFrameNextOffset + sizeof(void*)))
+				break;
+			HideNodeAndChildren(child, depth + 1);
+			child = CMem::Get<void*>(reinterpret_cast<uintptr_t>(child) + RwFrameNextOffset);
+		}
+	}
+
 	enum eVehicleTypeLite
 	{
 		VEHICLE_AUTOMOBILE = 0,
@@ -738,8 +761,10 @@ namespace
 			return;
 
 		void* wheelNode = CMem::Get<void*>(wheelNodeAddress);
+		// DOUBLE_RWHEELS clones the second rear tire onto a *child* frame of LB/RB.
+		// Non-recursive hide leaves that companion visible (Firela 544, Yosemite, etc).
 		if (wheelNode && CanAccess(wheelNode, 0xA0))
-			HideAllAtomics(wheelNode);
+			HideNodeAndChildren(wheelNode);
 	}
 
 	void* GetAutomobileCarNode(uintptr_t pGtaVehicle, int nodeIndex)
@@ -757,6 +782,11 @@ namespace
 
 	bool VehicleHasDoubleRearWheels(uintptr_t pGtaVehicle)
 	{
+		// Prefer handling flag, but also treat present LM/RM nodes as dual-rear
+		// (custom handling may strip DOUBLE_RWHEELS while the DFF still has them).
+		if (GetAutomobileCarNode(pGtaVehicle, 6) || GetAutomobileCarNode(pGtaVehicle, 3))
+			return true;
+
 		DWORD handling = 0;
 		if (!SampClient::ReadPointer(static_cast<DWORD>(pGtaVehicle + 0x384), handling) || !SampClient::CanRead(handling, 0xE0))
 			return false;
@@ -767,6 +797,72 @@ namespace
 		const DWORD modelFlags = *reinterpret_cast<DWORD*>(handling + 0xCC);
 		// tHandlingData::m_bDoubleRwheels
 		return (modelFlags & 0x20000000u) != 0;
+	}
+
+	void HideDetachedAutomobileWheels(uintptr_t pGtaVehicle, unsigned char wheelMask)
+	{
+		static const int carWheelNodeIndexes[] = { 5, 2, 7, 4 }; // LF, RF, LB, RB
+		static const int carWheelCompanionNodes[] = { -1, -1, 6, 3 }; // LM, RM
+		static const char* const carWheelNames[] = {
+			"wheel_lf_dummy",
+			"wheel_rf_dummy",
+			"wheel_lb_dummy",
+			"wheel_rb_dummy"
+		};
+		static const char* const carWheelCompanionNames[] = {
+			NULL,
+			NULL,
+			"wheel_lm_dummy",
+			"wheel_rm_dummy"
+		};
+
+		void* pRwClump = NULL;
+		if (CanAccess(reinterpret_cast<void*>(pGtaVehicle + 0x18), sizeof(void*)))
+			pRwClump = CMem::Get<void*>(pGtaVehicle + 0x18);
+
+		for (unsigned char wheelId = 0; wheelId < 4; ++wheelId)
+		{
+			if (!(wheelMask & (1u << wheelId)))
+				continue;
+
+			HideAutomobileCarNode(pGtaVehicle, carWheelNodeIndexes[wheelId]);
+			HideAutomobileCarNode(pGtaVehicle, carWheelCompanionNodes[wheelId]);
+
+			if (pRwClump && CanAccess(pRwClump, 0x20))
+			{
+				HideFrameByName(pRwClump, carWheelNames[wheelId], true);
+				if (carWheelCompanionNames[wheelId])
+					HideFrameByName(pRwClump, carWheelCompanionNames[wheelId], true);
+			}
+		}
+
+		// When both rear corners are detached, force-hide the full dual-rear tree
+		// (LB/RB parents + LM/RM + DOUBLE_RWHEELS child clones).
+		if ((wheelMask & 0x0Cu) == 0x0Cu)
+		{
+			HideAutomobileCarNode(pGtaVehicle, 7);
+			HideAutomobileCarNode(pGtaVehicle, 4);
+			HideAutomobileCarNode(pGtaVehicle, 6);
+			HideAutomobileCarNode(pGtaVehicle, 3);
+			if (pRwClump && CanAccess(pRwClump, 0x20))
+			{
+				HideFrameByName(pRwClump, "wheel_lb_dummy", true);
+				HideFrameByName(pRwClump, "wheel_rb_dummy", true);
+				HideFrameByName(pRwClump, "wheel_lm_dummy", true);
+				HideFrameByName(pRwClump, "wheel_rm_dummy", true);
+			}
+		}
+	}
+
+	void RememberDetachedGtaVehicle(DWORD gtaVehicle, unsigned char wheelMask)
+	{
+		if (!gtaVehicle)
+			return;
+
+		if (!wheelMask)
+			g_detachedGtaWheelMask.erase(gtaVehicle);
+		else
+			g_detachedGtaWheelMask[gtaVehicle] = wheelMask;
 	}
 
 	void ApplyVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached)
@@ -883,6 +979,10 @@ namespace
 				if (carWheelCompanionNames[wheelId])
 					HideFrameByName(pRwClump, carWheelCompanionNames[wheelId], detached);
 			}
+
+			std::map<unsigned short, unsigned char>::const_iterator maskIt = g_detachedVehicleWheels.find(vehicleId);
+			const unsigned char liveMask = (maskIt != g_detachedVehicleWheels.end()) ? maskIt->second : 0;
+			RememberDetachedGtaVehicle(static_cast<DWORD>(pGtaVehicle), liveMask);
 		}
 		else if (bikeLike)
 		{
@@ -940,6 +1040,22 @@ void CGame::ProcessWheelDetachRetries()
 	ReapplyDetachedVehicleWheels();
 }
 
+void CGame::OnAutomobilePreRenderEnd(void* automobile)
+{
+	if (!automobile || g_detachedGtaWheelMask.empty())
+		return;
+
+	const DWORD gtaVehicle = reinterpret_cast<DWORD>(automobile);
+	std::map<DWORD, unsigned char>::const_iterator it = g_detachedGtaWheelMask.find(gtaVehicle);
+	if (it == g_detachedGtaWheelMask.end() || !it->second)
+		return;
+
+	if (!CanAccess(automobile, 0x650))
+		return;
+
+	HideDetachedAutomobileWheels(static_cast<uintptr_t>(gtaVehicle), it->second);
+}
+
 void CGame::SetVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached)
 {
 	if (wheelId > 3)
@@ -962,7 +1078,12 @@ void CGame::SetVehicleWheelDetached(unsigned short vehicleId, unsigned char whee
 	}
 
 	if (!wheelMask)
+	{
+		DWORD gtaVehicle = 0;
+		if (SampClient::ResolveVehicle(vehicleId, gtaVehicle))
+			RememberDetachedGtaVehicle(gtaVehicle, 0);
 		g_detachedVehicleWheels.erase(vehicleId);
+	}
 
 	ApplyVehicleWheelDetached(vehicleId, wheelId, detached);
 }

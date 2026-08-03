@@ -71,6 +71,7 @@ public:
 		static void ToggleThermalVision(bool toggle);
 		static void SetVehicleWheelDetached(unsigned short vehicleId, unsigned char wheelId, bool detached);
 		static void ProcessWheelDetachRetries();
+		static void OnAutomobilePreRenderEnd(void* automobile);
 		static void ApplyTargetInputBlock();
 
 	static bool VehicleBlips;

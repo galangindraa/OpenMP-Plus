@@ -34,6 +34,7 @@ DWORD CJmpProxy::AircraftMaxHeight2JumpBack;
 DWORD CJmpProxy::MarkersHookJmpBack;
 DWORD CJmpProxy::RadioHookJmpBack;
 DWORD CJmpProxy::DrinkSprunkJmpBack;
+DWORD CJmpProxy::AutomobilePreRenderEndJumpBack;
 
 /*BYTE CJmpProxy::RaceCheckpointByteRed = NULL;
 BYTE CJmpProxy::RaceCheckpointByteGreen = NULL;
@@ -499,5 +500,21 @@ JMP_CAVE CJmpProxy::DrinkSprunkHook()
 		call CGame::OnDrinkSprunk
 
 		jmp[DrinkSprunkJmpBack]
+	}
+}
+
+JMP_CAVE CJmpProxy::AutomobilePreRenderEnd()
+{
+	// 0x6ABCFD is the last instruction of CAutomobile::PreRender before epilogue.
+	// esi = this (CAutomobile*). GTA may have just re-enabled dual-rear wheel atomics.
+	__asm
+	{
+		pushad
+		push esi
+		call CGame::OnAutomobilePreRenderEnd
+		add esp, 4
+		popad
+		mov[esp + 0D4h], edi
+		jmp[AutomobilePreRenderEndJumpBack]
 	}
 }
